@@ -66,11 +66,11 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         env:
-          SYMFONY_PHPUNIT_VERSION: '9.4'
+          SYMFONY_PHPUNIT_VERSION: '9.5'
         run: vendor/bin/simple-phpunit --version
       - name: Cache PHPStan results
         uses: actions/cache@v2
@@ -86,8 +86,8 @@ jobs:
           tests/Fixtures/app/console cache:clear --ansi
       - name: Run PHPStan analysis
         env:
-          SYMFONY_PHPUNIT_VERSION: '9.4'
-        run: ./vendor/bin/phpstan analyse --no-interaction --no-progress --no-interaction --ansi
+          SYMFONY_PHPUNIT_VERSION: '9.5'
+        run: ./vendor/bin/phpstan analyse --no-interaction --no-progress --ansi
 
   phpunit:
     name: PHPUnit (PHP ${{ matrix.php }})
@@ -102,7 +102,7 @@ jobs:
           - '7.4'
           - '8.0'
         include:
-          - php: '7.4'
+          - php: '8.0'
             coverage: true
       fail-fast: false
     steps:
@@ -129,7 +129,7 @@ jobs:
         if: matrix.coverage
         run: echo "COVERAGE=1" >> $GITHUB_ENV
       - name: Remove Doctrine MongoDB ODM
-        if: (startsWith(matrix.php, '7.1') || startsWith(matrix.php, '8.0'))
+        if: (startsWith(matrix.php, '7.1'))
         run: |
           composer remove --dev --no-interaction --no-progress --no-update --ansi \
             doctrine/mongodb-odm \
@@ -140,9 +140,9 @@ jobs:
             composer config platform.php 7.4.99
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
+      - name: Require Symfony components
         if: (!startsWith(matrix.php, '7.1'))
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
@@ -197,7 +197,7 @@ jobs:
           - '7.4'
           - '8.0'
         include:
-          - php: '7.4'
+          - php: '8.0'
             coverage: true
       fail-fast: false
     steps:
@@ -235,9 +235,9 @@ jobs:
             doctrine/mongodb-odm-bundle \
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
+      - name: Require Symfony components
         if: (!startsWith(matrix.php, '7.1'))
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
@@ -252,7 +252,11 @@ jobs:
           if [ "$COVERAGE" = '1' ]; then
             vendor/bin/behat --out=std --format=progress --format=junit --out=build/logs/behat/junit --profile=default-coverage --no-interaction
           else
-            vendor/bin/behat --out=std --format=progress --format=junit --out=build/logs/behat/junit --profile=default --no-interaction
+            if [ "${{ matrix.php }}" = '7.1' ]; then
+              vendor/bin/behat --out=std --format=progress --format=junit --out=build/logs/behat/junit --profile=default --no-interaction --tags='~@symfony/uid'
+            else
+              vendor/bin/behat --out=std --format=progress --format=junit --out=build/logs/behat/junit --profile=default --no-interaction
+            fi
           fi
       - name: Merge code coverage reports
         if: matrix.coverage
@@ -337,8 +341,8 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi --prefer-lowest
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Clear test app cache
         run: tests/Fixtures/app/console cache:clear --ansi
       - name: Install PHPUnit
@@ -377,14 +381,15 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi --prefer-lowest
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
         run: tests/Fixtures/app/console cache:clear --ansi
       - name: Run Behat tests
-        run: vendor/bin/behat --out=std --format=progress --profile=default --no-interaction --tags '~@!lowest'
+        # @TODO remove the tag "@symfony/uid" in 3.0
+        run: vendor/bin/behat --out=std --format=progress --profile=default --no-interaction --tags='~@symfony/uid'
 
   postgresql:
     name: Behat (PHP ${{ matrix.php }}) (PostgreSQL)
@@ -427,8 +432,8 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
@@ -446,16 +451,20 @@ jobs:
         php:
           - '7.4'
       fail-fast: false
+    services:
+      mysql:
+        image: mariadb:10.5.9
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: api_platform_test
+        ports:
+          - 3306:3306
     env:
       APP_ENV: mysql
       DATABASE_URL: mysql://root:root@127.0.0.1/api_platform_test
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-      - name: Setup mysql
-        run: |
-          sudo systemctl start mysql.service
-          sudo mysql -u root -proot -e "CREATE DATABASE api_platform_test"
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -475,14 +484,14 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
         run: tests/Fixtures/app/console cache:clear --ansi
       - name: Run Behat tests
-        run: vendor/bin/behat --out=std --format=progress --profile=default --no-interaction
+        run: vendor/bin/behat --out=std --format=progress --profile=default --no-interaction --tags '~@!mysql'
 
   mongodb:
     name: PHPUnit + Behat (PHP ${{ matrix.php }}) (MongoDB)
@@ -522,8 +531,8 @@ jobs:
       - name: Update project dependencies
         run: |
           composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
@@ -576,8 +585,8 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install Elasticsearch-php # there is a version matrix for this package: https://packagist.org/packages/elasticsearch/elasticsearch
         run: composer require "elasticsearch/elasticsearch:v6.7.2" --no-interaction --no-progress --ansi
       - name: Install PHPUnit
@@ -620,8 +629,8 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install PHPUnit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
@@ -638,10 +647,12 @@ jobs:
         php:
           - '8.0'
         symfony:
-          - '5.3'
+          - '5.4'
       fail-fast: false
     env:
-      SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+      # See https://github.com/doctrine/DoctrineMongoDBBundle/pull/673
+      #SYMFONY_DEPRECATIONS_HELPER: max[direct]=0
+      SYMFONY_DEPRECATIONS_HELPER: max[self]=0
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -668,8 +679,8 @@ jobs:
         run: rm -Rf tests/Fixtures/app/var/cache/*
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid symfony/intl --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Flag held back Symfony packages
         env:
           symfony_version: ${{ matrix.symfony }}
@@ -700,7 +711,7 @@ jobs:
         php:
           - '8.0'
         symfony:
-          - '5.3'
+          - '5.4'
       fail-fast: false
     steps:
       - name: Checkout
@@ -730,8 +741,8 @@ jobs:
         run: rm -Rf tests/Fixtures/app/var/cache/*
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Flag held back Symfony packages
         env:
           symfony_version: ${{ matrix.symfony }}
@@ -792,8 +803,8 @@ jobs:
             composer config platform.php 7.4.99
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install phpunit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache
@@ -840,8 +851,8 @@ jobs:
             composer config platform.php 7.4.99
       - name: Update project dependencies
         run: composer update --no-interaction --no-progress --ansi
-      - name: Require Symfony Uid
-        run: composer require symfony/uid --dev --no-interaction --no-progress --ansi
+      - name: Require Symfony components
+        run: composer require symfony/intl symfony/uid --dev --no-interaction --no-progress --ansi
       - name: Install phpunit
         run: vendor/bin/simple-phpunit --version
       - name: Clear test app cache

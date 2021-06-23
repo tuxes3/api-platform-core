@@ -66,6 +66,7 @@ class ApiResourceTest extends TestCase
             'validationGroups' => ['foo', 'bar'],
             'sunset' => 'Thu, 11 Oct 2018 00:00:00 +0200',
             'urlGenerationStrategy' => UrlGeneratorInterface::ABS_PATH,
+            'queryParameterValidationEnabled' => false,
         ]);
 
         $this->assertSame('shortName', $resource->shortName);
@@ -107,6 +108,7 @@ class ApiResourceTest extends TestCase
             'cache_headers' => ['max_age' => 0, 'shared_max_age' => 0, 'vary' => ['Custom-Vary-1', 'Custom-Vary-2']],
             'sunset' => 'Thu, 11 Oct 2018 00:00:00 +0200',
             'url_generation_strategy' => 1,
+            'query_parameter_validation_enabled' => false,
         ], $resource->attributes);
     }
 
@@ -159,6 +161,10 @@ return new \ApiPlatform\Core\Annotation\ApiResource(
     hydraContext: ['hydra' => 'foo'],
     paginationViaCursor: ['foo'],
     stateless: true,
+    exceptionToStatus: [
+        \DomainException::class => 400,
+    ],
+    queryParameterValidationEnabled: false,
 );
 PHP
         );
@@ -208,6 +214,10 @@ PHP
             'pagination_via_cursor' => ['foo'],
             'stateless' => true,
             'composite_identifier' => null,
+            'exception_to_status' => [
+                \DomainException::class => 400,
+            ],
+            'query_parameter_validation_enabled' => false,
         ], $resource->attributes);
     }
 

@@ -12,16 +12,20 @@
 declare(strict_types=1);
 
 use ApiPlatform\Core\Bridge\Symfony\Bundle\ApiPlatformBundle;
+use ApiPlatform\Core\Tests\Behat\DoctrineContext;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\User as UserDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\User;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\TestBundle;
 use Doctrine\Bundle\DoctrineBundle\DoctrineBundle;
 use Doctrine\Bundle\MongoDBBundle\DoctrineMongoDBBundle;
 use Doctrine\Common\Inflector\Inflector;
+use Doctrine\Inflector\InflectorFactory;
 use FriendsOfBehat\SymfonyExtension\Bundle\FriendsOfBehatSymfonyExtensionBundle;
 use Nelmio\ApiDocBundle\NelmioApiDocBundle;
+use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
+use Symfony\Bundle\MakerBundle\MakerBundle;
 use Symfony\Bundle\MercureBundle\MercureBundle;
 use Symfony\Bundle\SecurityBundle\SecurityBundle;
 use Symfony\Bundle\TwigBundle\TwigBundle;
@@ -35,6 +39,7 @@ use Symfony\Component\PasswordHasher\Hasher\NativePasswordHasher;
 use Symfony\Component\Routing\Loader\Configurator\RoutingConfigurator;
 use Symfony\Component\Routing\RouteCollectionBuilder;
 use Symfony\Component\Security\Core\User\UserInterface;
+use Symfony\Component\Uid\Uuid;
 
 /**
  * AppKernel for tests.
@@ -54,7 +59,7 @@ class AppKernel extends Kernel
 
         // patch for old versions of Doctrine Inflector, to delete when we'll drop support for v1
         // see https://github.com/doctrine/inflector/issues/147#issuecomment-628807276
-        if (class_exists(Inflector::class)) {
+        if (!class_exists(InflectorFactory::class)) { // @phpstan-ignore-next-line
             Inflector::rules('plural', ['/taxon/i' => 'taxa']);
         }
     }
@@ -70,6 +75,7 @@ class AppKernel extends Kernel
             new WebProfilerBundle(),
             new FriendsOfBehatSymfonyExtensionBundle(),
             new FrameworkBundle(),
+            new MakerBundle(),
         ];
 
         if (class_exists(DoctrineMongoDBBundle::class)) {
@@ -110,6 +116,13 @@ class AppKernel extends Kernel
 
         $loader->load(__DIR__."/config/config_{$this->getEnvironment()}.yml");
 
+        /* @TODO remove this check in 3.0 */
+        if (\PHP_VERSION_ID >= 70200 && class_exists(Uuid::class) && class_exists(UuidType::class)) {
+            $loader->load(__DIR__.'/config/config_symfony_uid.yml');
+        }
+
+        $c->getDefinition(DoctrineContext::class)->setArgument('$passwordHasher', class_exists(NativePasswordHasher::class) ? 'security.user_password_encoder' : 'security.user_password_hasher');
+
         $c->prependExtensionConfig('framework', [
             'secret' => 'dunglas.fr',
             'validation' => ['enable_annotations' => true],
@@ -129,9 +142,9 @@ class AppKernel extends Kernel
             'router' => ['utf8' => true],
         ]);
 
-        $alg = class_exists(NativePasswordHasher::class) || class_exists('Symfony\Component\Security\Core\Encoder\NativePasswordEncoder') ? 'auto' : 'bcrypt';
+        $alg = class_exists(NativePasswordHasher::class, false) || class_exists('Symfony\Component\Security\Core\Encoder\NativePasswordEncoder') ? 'auto' : 'bcrypt';
         $securityConfig = [
-            'encoders' => [
+            class_exists(NativePasswordHasher::class) ? 'password_hashers' : 'encoders' => [
                 User::class => $alg,
                 UserDocument::class => $alg,
                 // Don't use plaintext in production!
@@ -175,6 +188,11 @@ class AppKernel extends Kernel
                 ['path' => '^/', 'role' => 'IS_AUTHENTICATED_ANONYMOUSLY'],
             ],
         ];
+
+        if (class_exists(NativePasswordHasher::class)) {
+            $securityConfig['enable_authenticator_manager'] = true;
+            unset($securityConfig['firewalls']['default']['anonymous']);
+        }
 
         $c->prependExtensionConfig('security', $securityConfig);
 

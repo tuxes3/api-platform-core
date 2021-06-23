@@ -105,6 +105,7 @@ class ConfigurationTest extends TestCase
             'path_segment_name_generator' => 'api_platform.path_segment_name_generator.underscore',
             'validator' => [
                 'serialize_payload_fields' => [],
+                'query_parameter_validation' => true,
             ],
             'name_converter' => null,
             'enable_fos_user' => false,
@@ -142,9 +143,9 @@ class ConfigurationTest extends TestCase
                 'clientSecret' => '',
                 'type' => 'oauth2',
                 'flow' => 'application',
-                'tokenUrl' => '/oauth/v2/token',
-                'authorizationUrl' => '/oauth/v2/auth',
-                'refreshUrl' => '/oauth/v2/refresh',
+                'tokenUrl' => '',
+                'authorizationUrl' => '',
+                'refreshUrl' => '',
                 'scopes' => [],
             ],
             'swagger' => [
@@ -162,6 +163,7 @@ class ConfigurationTest extends TestCase
                 'exists_parameter_name' => 'exists',
                 'order' => 'ASC',
                 'order_parameter_name' => 'order',
+                'order_nulls_comparison' => null,
                 'pagination' => [
                     'enabled' => true,
                     'partial' => false,
@@ -221,6 +223,9 @@ class ConfigurationTest extends TestCase
                 ],
                 'backward_compatibility_layer' => true,
                 'swagger_ui_extra_configuration' => [],
+            ],
+            'maker' => [
+                'enabled' => true,
             ],
         ], $config);
     }

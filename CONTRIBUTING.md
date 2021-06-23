@@ -52,6 +52,20 @@ But don't worry, you can fix CS issues automatically using the [PHP CS Fixer](ht
 And then, add the fixed file to your commit before pushing.
 Be sure to add only **your modified files**. If any other file is fixed by cs tools, just revert it before committing.
 
+### Backward Compatibility Promise
+
+API Platform is following the [Symfony Backward Compatibility Promise](https://symfony.com/doc/current/contributing/code/bc.html).
+
+When you are making a change, make sure no BC break is added.
+
+### Deprecating Code
+
+Adding a deprecation is sometimes necessary in order to follow the backward compatibility promise and to improve an existing implementation.
+
+They can only be introduced in minor or major versions (`main` branch) and exceptionally in patch versions if they are critical.
+
+See also the [related documentation for Symfony](https://symfony.com/doc/current/contributing/code/conventions.html#deprecating-code).
+
 ### Sending a Pull Request
 
 When you send a PR, just make sure that:
@@ -62,6 +76,32 @@ When you send a PR, just make sure that:
 * You make the PR on the same branch you based your changes on. If you see commits
 that you did not make in your PR, you're doing it wrong.
 * Also don't forget to add a comment when you update a PR with a ping to [the maintainers](https://github.com/orgs/api-platform/people), so he/she will get a notification.
+
+The commit messages must follow the [Conventional Commits specification](https://www.conventionalcommits.org/).
+The following types are allowed:
+
+* `fix`: bug fix
+* `feat`: new feature
+* `docs`: change in the documentation
+* `spec`: spec change
+* `test`: test-related change
+* `perf`: performance optimization
+* `ci`: CI-related change
+* `chore`: updating dependencies and related changes
+
+Examples:
+
+    fix(metadata): resource identifiers from properties 
+
+    feat(validation): introduce a number constraint
+
+    feat(metadata)!: new resource metadata system, BC break
+
+    docs(doctrine): search filter on uuids
+
+    test(doctrine): mongodb disambiguation
+
+We strongly recommend the use of a scope on API Platform core.
 
 ### Tests
 

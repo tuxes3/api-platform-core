@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace ApiPlatform\Core\Bridge\Symfony\Bundle\DependencyInjection;
 
 use ApiPlatform\Core\Annotation\ApiResource;
+use ApiPlatform\Core\Bridge\Doctrine\Common\Filter\OrderFilterInterface;
 use ApiPlatform\Core\Bridge\Elasticsearch\Metadata\Document\DocumentMetadata;
 use ApiPlatform\Core\Exception\FilterValidationException;
 use ApiPlatform\Core\Exception\InvalidArgumentException;
@@ -25,6 +26,7 @@ use Elasticsearch\Client as ElasticsearchClient;
 use FOS\UserBundle\FOSUserBundle;
 use GraphQL\GraphQL;
 use Symfony\Bundle\FullStack;
+use Symfony\Bundle\MakerBundle\MakerBundle;
 use Symfony\Bundle\MercureBundle\MercureBundle;
 use Symfony\Bundle\TwigBundle\TwigBundle;
 use Symfony\Component\Config\Definition\BaseNode;
@@ -94,11 +96,16 @@ final class Configuration implements ConfigurationInterface
                 ->scalarNode('name_converter')->defaultNull()->info('Specify a name converter to use.')->end()
                 ->scalarNode('asset_package')->defaultNull()->info('Specify an asset package name to use.')->end()
                 ->scalarNode('path_segment_name_generator')->defaultValue('api_platform.path_segment_name_generator.underscore')->info('Specify a path name generator to use.')->end()
-                ->booleanNode('allow_plain_identifiers')->defaultFalse()->info('Allow plain identifiers, for example "id" instead of "@id" when denormalizing a relation.')->end()
+                ->booleanNode('allow_plain_identifiers')
+                    ->defaultFalse()
+                    ->info('Allow plain identifiers, for example "id" instead of "@id" when denormalizing a relation.')
+                    ->setDeprecated(...$this->buildDeprecationArgs('2.7', 'The use of `allow_plain_identifiers` has been deprecated in 2.7 and will be removed in 3.0.'))
+                ->end()
                 ->arrayNode('validator')
                     ->addDefaultsIfNotSet()
                     ->children()
                         ->variableNode('serialize_payload_fields')->defaultValue([])->info('Set to null to serialize all payload fields when a validation error is thrown, or set the fields you want to include explicitly.')->end()
+                        ->booleanNode('query_parameter_validation')->defaultValue(true)->end()
                     ->end()
                 ->end()
                 ->arrayNode('eager_loading')
@@ -132,6 +139,7 @@ final class Configuration implements ConfigurationInterface
                         ->scalarNode('exists_parameter_name')->defaultValue('exists')->cannotBeEmpty()->info('The name of the query parameter to filter on nullable field values.')->end()
                         ->scalarNode('order')->defaultValue('ASC')->info('The default order of results.')->end() // Default ORDER is required for postgresql and mysql >= 5.7 when using LIMIT/OFFSET request
                         ->scalarNode('order_parameter_name')->defaultValue('order')->cannotBeEmpty()->info('The name of the query parameter to order results.')->end()
+                        ->enumNode('order_nulls_comparison')->defaultNull()->values(array_merge(array_keys(OrderFilterInterface::NULLS_DIRECTION_MAP), [null]))->info('The nulls comparison strategy.')->end()
                         ->arrayNode('pagination')
                             ->canBeDisabled()
                             ->addDefaultsIfNotSet()
@@ -202,6 +210,7 @@ final class Configuration implements ConfigurationInterface
         $this->addMessengerSection($rootNode);
         $this->addElasticsearchSection($rootNode);
         $this->addOpenApiSection($rootNode);
+        $this->addMakerSection($rootNode);
 
         $this->addExceptionToStatusSection($rootNode);
 
@@ -251,11 +260,11 @@ final class Configuration implements ConfigurationInterface
                     ->children()
                         ->scalarNode('clientId')->defaultValue('')->info('The oauth client id.')->end()
                         ->scalarNode('clientSecret')->defaultValue('')->info('The oauth client secret.')->end()
-                        ->scalarNode('type')->defaultValue('oauth2')->info('The oauth client secret.')->end()
+                        ->scalarNode('type')->defaultValue('oauth2')->info('The oauth type.')->end()
                         ->scalarNode('flow')->defaultValue('application')->info('The oauth flow grant type.')->end()
-                        ->scalarNode('tokenUrl')->defaultValue('/oauth/v2/token')->info('The oauth token url.')->end()
-                        ->scalarNode('authorizationUrl')->defaultValue('/oauth/v2/auth')->info('The oauth authentication url.')->end()
-                        ->scalarNode('refreshUrl')->defaultValue('/oauth/v2/refresh')->info('The oauth refresh url.')->end()
+                        ->scalarNode('tokenUrl')->defaultValue('')->info('The oauth token url.')->end()
+                        ->scalarNode('authorizationUrl')->defaultValue('')->info('The oauth authentication url.')->end()
+                        ->scalarNode('refreshUrl')->defaultValue('')->info('The oauth refresh url.')->end()
                         ->arrayNode('scopes')
                             ->prototype('scalar')->end()
                         ->end()
@@ -620,6 +629,16 @@ final class Configuration implements ConfigurationInterface
             $snakeCased = $nameConverter->normalize($attribute);
             $defaultsNode->children()->variableNode($snakeCased);
         }
+    }
+
+    private function addMakerSection(ArrayNodeDefinition $rootNode): void
+    {
+        $rootNode
+            ->children()
+                ->arrayNode('maker')
+                    ->{class_exists(MakerBundle::class) ? 'canBeDisabled' : 'canBeEnabled'}()
+                ->end()
+            ->end();
     }
 
     private function buildDeprecationArgs(string $version, string $message): array

@@ -16,6 +16,7 @@ namespace ApiPlatform\Core\Tests\Bridge\Symfony\Bundle\Test;
 use ApiPlatform\Core\Bridge\Symfony\Bundle\Test\ApiTestCase;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\Dummy as DummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Dummy;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyDtoInputOutput;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Model\ResourceInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
@@ -70,7 +71,7 @@ JSON
         self::createClient()->request('GET', '/contexts/Address');
         $this->assertJsonEquals([
             '@context' => [
-                '@vocab' => 'http://example.com/docs.jsonld#',
+                '@vocab' => 'http://localhost/docs.jsonld#',
                 'hydra' => 'http://www.w3.org/ns/hydra/core#',
                 'name' => 'Address/name',
             ],
@@ -83,7 +84,7 @@ JSON
         $this->assertJsonEquals(<<<JSON
 {
     "@context": {
-        "@vocab": "http://example.com/docs.jsonld#",
+        "@vocab": "http://localhost/docs.jsonld#",
         "hydra": "http://www.w3.org/ns/hydra/core#",
         "name": "Address/name"
     }
@@ -137,6 +138,21 @@ JSON;
         $this->assertMatchesResourceItemJsonSchema(ResourceInterface::class);
     }
 
+    public function testAssertMatchesResourceItemJsonSchemaOutput(): void
+    {
+        $this->recreateSchema();
+
+        /** @var EntityManagerInterface $manager */
+        $manager = (method_exists(static::class, 'getContainer') ? static::getContainer() : static::$container)->get('doctrine')->getManager();
+        $dummyDtoInputOutput = new DummyDtoInputOutput();
+        $dummyDtoInputOutput->str = 'lorem';
+        $dummyDtoInputOutput->num = 54;
+        $manager->persist($dummyDtoInputOutput);
+        $manager->flush();
+        self::createClient()->request('GET', '/dummy_dto_input_outputs/1');
+        $this->assertMatchesResourceItemJsonSchema(DummyDtoInputOutput::class);
+    }
+
     // Next tests have been imported from dms/phpunit-arraysubset-asserts, because the original constraint has been deprecated.
 
     public function testAssertArraySubsetPassesStrictConfig(): void
@@ -160,16 +176,7 @@ JSON;
 
     public function testFindIriBy(): void
     {
-        self::bootKernel();
-        /**
-         * @var EntityManagerInterface
-         */
-        $manager = self::$container->get('doctrine')->getManager();
-        $classes = $manager->getMetadataFactory()->getAllMetadata();
-        $schemaTool = new SchemaTool($manager);
-
-        $schemaTool->dropSchema($classes);
-        $schemaTool->createSchema($classes);
+        $this->recreateSchema();
 
         self::createClient()->request('POST', '/dummies', [
             'headers' => [
@@ -180,8 +187,23 @@ JSON;
         ]);
         $this->assertResponseIsSuccessful();
 
-        $resource = 'mongodb' === self::$container->getParameter('kernel.environment') ? DummyDocument::class : Dummy::class;
+        $container = method_exists(static::class, 'getContainer') ? static::getContainer() : static::$container;
+        $resource = 'mongodb' === $container->getParameter('kernel.environment') ? DummyDocument::class : Dummy::class;
         $this->assertMatchesRegularExpression('~^/dummies/\d+~', self::findIriBy($resource, ['name' => 'Kevin']));
         $this->assertNull(self::findIriBy($resource, ['name' => 'not-exist']));
+    }
+
+    private function recreateSchema(): void
+    {
+        self::bootKernel();
+
+        /** @var EntityManagerInterface $manager */
+        $manager = (method_exists(static::class, 'getContainer') ? static::getContainer() : static::$container)->get('doctrine')->getManager();
+        /** @var \Doctrine\ORM\Mapping\ClassMetadata[] $classes */
+        $classes = $manager->getMetadataFactory()->getAllMetadata();
+        $schemaTool = new SchemaTool($manager);
+
+        $schemaTool->dropSchema($classes);
+        $schemaTool->createSchema($classes);
     }
 }

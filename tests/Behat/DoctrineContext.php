@@ -13,6 +13,7 @@ declare(strict_types=1);
 
 namespace ApiPlatform\Core\Tests\Behat;
 
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Doctrine\Orm\EntityManager;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\AbsoluteUrlDummy as AbsoluteUrlDummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\AbsoluteUrlRelationDummy as AbsoluteUrlRelationDummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\Address as AddressDocument;
@@ -48,9 +49,11 @@ use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyGroup as DummyGroup
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyImmutableDate as DummyImmutableDateDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyMercure as DummyMercureDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyOffer as DummyOfferDocument;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyPassenger as DummyPassengerDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyProduct as DummyProductDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyProperty as DummyPropertyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyTableInheritanceNotApiResourceChild as DummyTableInheritanceNotApiResourceChildDocument;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\DummyTravel as DummyTravelDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\EmbeddableDummy as EmbeddableDummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\EmbeddedDummy as EmbeddedDummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\FileConfigDummy as FileConfigDummyDocument;
@@ -73,6 +76,7 @@ use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\Question as QuestionDocu
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\RelatedDummy as RelatedDummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\RelatedOwnedDummy as RelatedOwnedDummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\RelatedOwningDummy as RelatedOwningDummyDocument;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\RelatedSecuredDummy as RelatedSecuredDummyDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\RelatedToDummyFriend as RelatedToDummyFriendDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\RelationEmbedder as RelationEmbedderDocument;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Document\SecuredDummy as SecuredDummyDocument;
@@ -117,9 +121,11 @@ use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyGroup;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyImmutableDate;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyMercure;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyOffer;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyPassenger;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyProduct;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyProperty;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyTableInheritanceNotApiResourceChild;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\DummyTravel;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\EmbeddableDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\EmbeddedDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\ExternalUser;
@@ -141,16 +147,17 @@ use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\PersonToPet;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Pet;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Product;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Question;
-use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RamseyUuidBinaryDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RamseyUuidDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RelatedDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RelatedOwnedDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RelatedOwningDummy;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RelatedSecuredDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RelatedToDummyFriend;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\RelationEmbedder;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\SecuredDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Site;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\SoMany;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\SymfonyUuidDummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Taxon;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\ThirdLevel;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\UrlEncodedId;
@@ -164,7 +171,10 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\Persistence\ManagerRegistry;
 use Doctrine\Persistence\ObjectManager;
+use Ramsey\Uuid\Uuid;
+use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Security\Core\Encoder\UserPasswordEncoderInterface;
+use Symfony\Component\Uid\Uuid as SymfonyUuid;
 
 /**
  * Defines application features from the specific context.
@@ -176,10 +186,9 @@ final class DoctrineContext implements Context
      */
     private $manager;
     private $doctrine;
-    private $passwordEncoder;
+    private $passwordHasher;
     private $schemaTool;
     private $schemaManager;
-    private $classes;
 
     /**
      * Initializes context.
@@ -187,15 +196,16 @@ final class DoctrineContext implements Context
      * Every scenario gets its own context instance.
      * You can also pass arbitrary arguments to the
      * context constructor through behat.yml.
+     *
+     * @param UserPasswordEncoderInterface|UserPasswordHasherInterface $passwordHasher
      */
-    public function __construct(ManagerRegistry $doctrine, UserPasswordEncoderInterface $passwordEncoder)
+    public function __construct(ManagerRegistry $doctrine, $passwordHasher)
     {
         $this->doctrine = $doctrine;
-        $this->passwordEncoder = $passwordEncoder;
+        $this->passwordHasher = $passwordHasher;
         $this->manager = $doctrine->getManager();
         $this->schemaTool = $this->manager instanceof EntityManagerInterface ? new SchemaTool($this->manager) : null;
         $this->schemaManager = $this->manager instanceof DocumentManager ? $this->manager->getSchemaManager() : null;
-        $this->classes = $this->manager->getMetadataFactory()->getAllMetadata();
     }
 
     /**
@@ -203,9 +213,12 @@ final class DoctrineContext implements Context
      */
     public function createDatabase()
     {
+        /** @var \Doctrine\ORM\Mapping\ClassMetadata[] $classes */
+        $classes = $this->manager->getMetadataFactory()->getAllMetadata();
+
         if ($this->isOrm()) {
-            $this->schemaTool->dropSchema($this->classes);
-            $this->schemaTool->createSchema($this->classes);
+            $this->schemaTool->dropSchema($classes);
+            $this->schemaTool->createSchema($classes);
         }
 
         if ($this->isOdm()) {
@@ -213,6 +226,25 @@ final class DoctrineContext implements Context
         }
 
         $this->doctrine->getManager()->clear();
+    }
+
+    /**
+     * @Then the DQL should be equal to:
+     */
+    public function theDqlShouldBeEqualTo(PyStringNode $dql)
+    {
+        /** @var EntityManager $manager */
+        $manager = $this->doctrine->getManager();
+
+        $actualDql = $manager::$dql;
+
+        $expectedDql = preg_replace('/\(\R */', '(', (string) $dql);
+        $expectedDql = preg_replace('/\R *\)/', ')', $expectedDql);
+        $expectedDql = preg_replace('/\R */', ' ', $expectedDql);
+
+        if ($expectedDql !== $actualDql) {
+            throw new \RuntimeException("The DQL:\n'$actualDql' is not equal to:\n'$expectedDql'");
+        }
     }
 
     /**
@@ -618,6 +650,53 @@ final class DoctrineContext implements Context
     }
 
     /**
+     * @Given there is a dummy object with :nb relatedDummies and their thirdLevel
+     */
+    public function thereIsADummyObjectWithRelatedDummiesAndTheirThirdLevel(int $nb)
+    {
+        $dummy = $this->buildDummy();
+        $dummy->setName('Dummy with relations');
+
+        for ($i = 1; $i <= $nb; ++$i) {
+            $thirdLevel = $this->buildThirdLevel();
+
+            $relatedDummy = $this->buildRelatedDummy();
+            $relatedDummy->setName('RelatedDummy #'.$i);
+            $relatedDummy->setThirdLevel($thirdLevel);
+
+            $dummy->addRelatedDummy($relatedDummy);
+
+            $this->manager->persist($thirdLevel);
+            $this->manager->persist($relatedDummy);
+        }
+        $this->manager->persist($dummy);
+        $this->manager->flush();
+    }
+
+    /**
+     * @Given there is a dummy object with :nb relatedDummies with same thirdLevel
+     */
+    public function thereIsADummyObjectWithRelatedDummiesWithSameThirdLevel(int $nb)
+    {
+        $dummy = $this->buildDummy();
+        $dummy->setName('Dummy with relations');
+        $thirdLevel = $this->buildThirdLevel();
+
+        for ($i = 1; $i <= $nb; ++$i) {
+            $relatedDummy = $this->buildRelatedDummy();
+            $relatedDummy->setName('RelatedDummy #'.$i);
+            $relatedDummy->setThirdLevel($thirdLevel);
+
+            $dummy->addRelatedDummy($relatedDummy);
+
+            $this->manager->persist($relatedDummy);
+        }
+        $this->manager->persist($thirdLevel);
+        $this->manager->persist($dummy);
+        $this->manager->flush();
+    }
+
+    /**
      * @Given there are :nb dummy objects with embeddedDummy
      */
     public function thereAreDummyObjectsWithEmbeddedDummy(int $nb)
@@ -649,7 +728,7 @@ final class DoctrineContext implements Context
             for ($j = 1; $j <= $nbrelated; ++$j) {
                 $relatedDummy = $this->buildRelatedDummy();
                 $relatedDummy->setName('RelatedDummy'.$j.$i);
-
+                $relatedDummy->setAge((int) ($j.$i));
                 $this->manager->persist($relatedDummy);
 
                 $dummy->addRelatedDummy($relatedDummy);
@@ -966,6 +1045,40 @@ final class DoctrineContext implements Context
     }
 
     /**
+     * @Given there are :nb SecuredDummy objects owned by :ownedby with related dummies
+     */
+    public function thereAreSecuredDummyObjectsOwnedByWithRelatedDummies(int $nb, string $ownedby)
+    {
+        for ($i = 1; $i <= $nb; ++$i) {
+            $securedDummy = $this->buildSecuredDummy();
+            $securedDummy->setTitle("#$i");
+            $securedDummy->setDescription("Hello #$i");
+            $securedDummy->setOwner($ownedby);
+
+            $relatedDummy = $this->buildRelatedDummy();
+            $relatedDummy->setName('RelatedDummy');
+            $this->manager->persist($relatedDummy);
+
+            $relatedSecuredDummy = $this->buildRelatedSecureDummy();
+            $this->manager->persist($relatedSecuredDummy);
+
+            $publicRelatedSecuredDummy = $this->buildRelatedSecureDummy();
+            $this->manager->persist($publicRelatedSecuredDummy);
+
+            $securedDummy->addRelatedDummy($relatedDummy);
+            $securedDummy->setRelatedDummy($relatedDummy);
+            $securedDummy->addRelatedSecuredDummy($relatedSecuredDummy);
+            $securedDummy->setRelatedSecuredDummy($relatedSecuredDummy);
+            $securedDummy->addPublicRelatedSecuredDummy($publicRelatedSecuredDummy);
+            $securedDummy->setPublicRelatedSecuredDummy($publicRelatedSecuredDummy);
+
+            $this->manager->persist($securedDummy);
+        }
+
+        $this->manager->flush();
+    }
+
+    /**
      * @Given there is a RelationEmbedder object
      */
     public function thereIsARelationEmbedderObject()
@@ -1076,6 +1189,30 @@ final class DoctrineContext implements Context
     }
 
     /**
+     * @Given there is a dummy travel
+     */
+    public function thereIsADummyTravel()
+    {
+        $car = $this->buildDummyCar();
+        $car->setName('model x');
+        $car->setCanSell(true);
+        $car->setAvailableAt(new \DateTime());
+        $this->manager->persist($car);
+
+        $passenger = $this->buildDummyPassenger();
+        $passenger->nickname = 'Tom';
+        $this->manager->persist($passenger);
+
+        $travel = $this->buildDummyTravel();
+        $travel->car = $car;
+        $travel->passenger = $passenger;
+        $travel->confirmed = true;
+        $this->manager->persist($travel);
+
+        $this->manager->flush();
+    }
+
+    /**
      * @Given there is a RelatedDummy with :nb friends
      */
     public function thereIsARelatedDummyWithFriends(int $nb)
@@ -1148,7 +1285,7 @@ final class DoctrineContext implements Context
     public function thePasswordForUserShouldBeHashed(string $password, string $user)
     {
         $user = $this->doctrine->getRepository($this->isOrm() ? User::class : UserDocument::class)->find($user);
-        if (!$this->passwordEncoder->isPasswordValid($user, $password)) {
+        if (!$this->passwordHasher->isPasswordValid($user, $password)) {
             throw new \Exception('User password mismatch');
         }
     }
@@ -1318,38 +1455,19 @@ final class DoctrineContext implements Context
      */
     public function thereIsARamseyIdentifiedResource(string $uuid)
     {
-        $dummy = new RamseyUuidDummy();
-        $dummy->setId($uuid);
+        $dummy = new RamseyUuidDummy(Uuid::fromString($uuid));
 
         $this->manager->persist($dummy);
         $this->manager->flush();
     }
 
     /**
-     * @Given there is a ramsey identified resource with binary uuid :uuid
+     * @Given there is a Symfony dummy identified resource with uuid :uuid
      */
-    public function thereIsARamseyIdentifiedResourceWithBinaryUuid(string $uuid)
+    public function thereIsASymfonyDummyIdentifiedResource(string $uuid)
     {
-        $dummy = new RamseyUuidBinaryDummy();
-        $dummy->setId($uuid);
+        $dummy = new SymfonyUuidDummy(SymfonyUuid::fromString($uuid));
 
-        $this->manager->persist($dummy);
-        $this->manager->flush();
-    }
-
-    /**
-     * @Given there is a ramsey identified resource with binary uuid :uuid having a related resource with binary uuid :uuid_related
-     */
-    public function thereIsARamseyIdentifiedResourceWithBinaryUuidHavingARelatedResourceWithBinaryUuid(string $uuid, string $uuidRelated)
-    {
-        $related = new RamseyUuidBinaryDummy();
-        $related->setId($uuidRelated);
-
-        $dummy = new RamseyUuidBinaryDummy();
-        $dummy->setId($uuid);
-        $dummy->addRelated($related);
-
-        $this->manager->persist($related);
         $this->manager->persist($dummy);
         $this->manager->flush();
     }
@@ -1842,6 +1960,22 @@ final class DoctrineContext implements Context
     }
 
     /**
+     * @return DummyPassenger|DummyPassengerDocument
+     */
+    private function buildDummyPassenger()
+    {
+        return $this->isOrm() ? new DummyPassenger() : new DummyPassengerDocument();
+    }
+
+    /**
+     * @return DummyTravel|DummyTravelDocument
+     */
+    private function buildDummyTravel()
+    {
+        return $this->isOrm() ? new DummyTravel() : new DummyTravelDocument();
+    }
+
+    /**
      * @return DummyDate|DummyDateDocument
      */
     private function buildDummyDate()
@@ -2087,6 +2221,14 @@ final class DoctrineContext implements Context
     private function buildSecuredDummy()
     {
         return $this->isOrm() ? new SecuredDummy() : new SecuredDummyDocument();
+    }
+
+    /**
+     * @return RelatedSecuredDummy|RelatedSecuredDummyDocument
+     */
+    private function buildRelatedSecureDummy()
+    {
+        return $this->isOrm() ? new RelatedSecuredDummy() : new RelatedSecuredDummyDocument();
     }
 
     /**

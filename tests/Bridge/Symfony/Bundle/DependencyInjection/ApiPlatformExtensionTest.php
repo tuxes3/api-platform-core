@@ -664,6 +664,7 @@ class ApiPlatformExtensionTest extends TestCase
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.metadata.document.metadata_factory.cached', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.identifier_extractor', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.name_converter.inner_fields', Argument::type(Definition::class))->shouldBeCalled();
+        $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.normalizer.document', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.normalizer.item', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.item_data_provider', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.collection_data_provider', Argument::type(Definition::class))->shouldBeCalled();
@@ -675,6 +676,7 @@ class ApiPlatformExtensionTest extends TestCase
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.term_filter', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.order_filter', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.match_filter', Argument::type(Definition::class))->shouldBeCalled();
+        $containerBuilderProphecy->setDefinition('api_platform.elasticsearch.subresource_data_provider', Argument::type(Definition::class))->shouldBeCalled();
         $containerBuilderProphecy->setAlias('api_platform.elasticsearch.metadata.document.metadata_factory', 'api_platform.elasticsearch.metadata.document.metadata_factory.configured')->shouldBeCalled();
         $containerBuilderProphecy->setAlias(DocumentMetadataFactoryInterface::class, 'api_platform.elasticsearch.metadata.document.metadata_factory')->shouldBeCalled();
         $containerBuilderProphecy->setAlias(IdentifierExtractorInterface::class, 'api_platform.elasticsearch.identifier_extractor')->shouldBeCalled();
@@ -807,6 +809,80 @@ class ApiPlatformExtensionTest extends TestCase
         $this->extension->load($config, $containerBuilder);
     }
 
+    public function testItLoadsMetadataConfigFileInAlphabeticalOrder()
+    {
+        $yamlExtractorDefinition = $this->prophesize(Definition::class);
+        $yamlExtractorDefinition->replaceArgument(0, Argument::that(static function ($paths): bool {
+            self::assertIsArray($paths);
+            self::assertContainsOnly('string', $paths);
+
+            $normalizePaths = static function (array $paths): array {
+                return array_map(
+                    static function (string $path): string {
+                        return str_replace(\DIRECTORY_SEPARATOR, '/', $path);
+                    },
+                    $paths
+                );
+            };
+
+            $testsDirectory = \dirname(__DIR__, 4);
+
+            self::assertSame(
+                $normalizePaths([
+                    "{$testsDirectory}/Bridge/Symfony/Bundle/DependencyInjection/Fixtures/resources/B.yaml",
+                    "{$testsDirectory}/Bridge/Symfony/Bundle/DependencyInjection/Fixtures/resources/Bb.yaml",
+                    "{$testsDirectory}/Bridge/Symfony/Bundle/DependencyInjection/Fixtures/resources/a.yaml",
+                    "{$testsDirectory}/Bridge/Symfony/Bundle/DependencyInjection/Fixtures/resources/a/a.yaml",
+                    "{$testsDirectory}/Bridge/Symfony/Bundle/DependencyInjection/Fixtures/resources/b/a.yaml",
+                    "{$testsDirectory}/Bridge/Symfony/Bundle/DependencyInjection/Fixtures/resources/c.yaml",
+                    "{$testsDirectory}/Bridge/Symfony/Bundle/DependencyInjection/Fixtures/resources/c/a.yaml",
+                    "{$testsDirectory}/Fixtures/TestBundle/Resources/config/api_resources.yml",
+                    "{$testsDirectory}/Fixtures/TestBundle/Resources/config/api_resources/dummy_address.yml",
+                    "{$testsDirectory}/Fixtures/TestBundle/Resources/config/api_resources/my_resource.yml",
+                ]),
+                $normalizePaths($paths)
+            );
+
+            return true;
+        }))->shouldBeCalled();
+
+        $containerBuilderProphecy = $this->getBaseContainerBuilderProphecyWithoutDefaultMetadataLoading();
+        $containerBuilderProphecy
+            ->getDefinition('api_platform.metadata.extractor.xml')
+            ->willReturn($this->prophesize(Definition::class))
+            ->shouldBeCalled();
+        $containerBuilderProphecy
+            ->getDefinition('api_platform.metadata.extractor.yaml')
+            ->willReturn($yamlExtractorDefinition)
+            ->shouldBeCalled();
+
+        $config = self::DEFAULT_CONFIG;
+        $config['api_platform']['mapping']['paths'] = [__DIR__.'/Fixtures/resources'];
+
+        $this->extension->load($config, $containerBuilderProphecy->reveal());
+    }
+
+    public function testSwaggerUiExtraConfigurationMerging()
+    {
+        $containerBuilderProphecy = $this->getBaseContainerBuilderProphecy();
+        $containerBuilderProphecy->setParameter('api_platform.swagger_ui.extra_configuration', [])->shouldNotBeCalled();
+        $containerBuilderProphecy->setParameter('api_platform.swagger_ui.extra_configuration', ['someParameter' => 'someValue'])->shouldBeCalled();
+        $containerBuilder = $containerBuilderProphecy->reveal();
+
+        $config = self::DEFAULT_CONFIG;
+        $config['api_platform']['openapi']['swagger_ui_extra_configuration'] = [];
+        $config['api_platform']['swagger']['swagger_ui_extra_configuration'] = ['someParameter' => 'someValue'];
+
+        $this->extension->load($config, $containerBuilder);
+
+        $config['api_platform']['openapi']['swagger_ui_extra_configuration'] = ['someParameter' => 'someValue'];
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You can not set "swagger_ui_extra_configuration" twice - in "openapi" and "swagger" section.');
+
+        $this->extension->load($config, $containerBuilder);
+    }
+
     private function getPartialContainerBuilderProphecy($configuration = null)
     {
         $parameterBag = new EnvPlaceholderParameterBag();
@@ -831,6 +907,7 @@ class ApiPlatformExtensionTest extends TestCase
             'api_platform.collection.exists_parameter_name' => 'exists',
             'api_platform.collection.order' => 'ASC',
             'api_platform.collection.order_parameter_name' => 'order',
+            'api_platform.collection.order_nulls_comparison' => null,
             'api_platform.description' => 'description',
             'api_platform.error_formats' => ['jsonproblem' => ['application/problem+json'], 'jsonld' => ['application/ld+json']],
             'api_platform.formats' => null === $configuration ? ['jsonld' => ['application/ld+json'], 'jsonhal' => ['application/hal+json']] : $this->getFormatsFromConfiguration($configuration['api_platform']['formats']) ?? [],
@@ -844,6 +921,7 @@ class ApiPlatformExtensionTest extends TestCase
             'api_platform.title' => 'title',
             'api_platform.version' => 'version',
             'api_platform.show_webby' => true,
+            // TODO: to remove in 3.0
             'api_platform.allow_plain_identifiers' => false,
             'api_platform.eager_loading.enabled' => Argument::type('bool'),
             'api_platform.eager_loading.max_joins' => 30,
@@ -967,6 +1045,7 @@ class ApiPlatformExtensionTest extends TestCase
             'api_platform.serializer.normalizer.item',
             'api_platform.serializer.property_filter',
             'api_platform.serializer.uuid_denormalizer',
+            'api_platform.serializer.mapping.class_metadata_factory',
             'api_platform.serializer_locator',
             'api_platform.subresource_data_provider',
             'api_platform.subresource_operation_factory',
@@ -1043,7 +1122,22 @@ class ApiPlatformExtensionTest extends TestCase
         return $containerBuilderProphecy;
     }
 
-    private function getBaseContainerBuilderProphecy(array $doctrineIntegrationsToLoad = ['orm'], $configuration = null)
+    private function getBaseContainerBuilderProphecy(
+        array $doctrineIntegrationsToLoad = ['orm'],
+        $configuration = null
+    ) {
+        $containerBuilderProphecy = $this->getBaseContainerBuilderProphecyWithoutDefaultMetadataLoading($doctrineIntegrationsToLoad, $configuration);
+
+        foreach (['yaml', 'xml'] as $format) {
+            $definitionProphecy = $this->prophesize(Definition::class);
+            $definitionProphecy->replaceArgument(0, Argument::type('array'))->shouldBeCalled();
+            $containerBuilderProphecy->getDefinition('api_platform.metadata.extractor.'.$format)->willReturn($definitionProphecy->reveal())->shouldBeCalled();
+        }
+
+        return $containerBuilderProphecy;
+    }
+
+    private function getBaseContainerBuilderProphecyWithoutDefaultMetadataLoading(array $doctrineIntegrationsToLoad = ['orm'], $configuration = null)
     {
         $hasSwagger = null === $configuration || true === $configuration['api_platform']['enable_swagger'] ?? false;
         $hasHydra = null === $configuration || isset($configuration['api_platform']['formats']['jsonld']);
@@ -1145,9 +1239,9 @@ class ApiPlatformExtensionTest extends TestCase
             'api_platform.oauth.clientSecret' => '',
             'api_platform.oauth.type' => 'oauth2',
             'api_platform.oauth.flow' => 'application',
-            'api_platform.oauth.tokenUrl' => '/oauth/v2/token',
-            'api_platform.oauth.authorizationUrl' => '/oauth/v2/auth',
-            'api_platform.oauth.refreshUrl' => '/oauth/v2/refresh',
+            'api_platform.oauth.tokenUrl' => '',
+            'api_platform.oauth.authorizationUrl' => '',
+            'api_platform.oauth.refreshUrl' => '',
             'api_platform.oauth.scopes' => [],
             'api_platform.enable_swagger_ui' => true,
             'api_platform.enable_re_doc' => true,
@@ -1159,6 +1253,7 @@ class ApiPlatformExtensionTest extends TestCase
             'api_platform.graphql.graphql_playground.enabled' => true,
             'api_platform.resource_class_directories' => Argument::type('array'),
             'api_platform.validator.serialize_payload_fields' => [],
+            'api_platform.validator.query_parameter_validation' => true,
             'api_platform.elasticsearch.enabled' => false,
             'api_platform.asset_package' => null,
             'api_platform.defaults' => ['attributes' => []],
@@ -1180,12 +1275,6 @@ class ApiPlatformExtensionTest extends TestCase
 
         foreach ($parameters as $key => $value) {
             $containerBuilderProphecy->setParameter($key, $value)->shouldBeCalled();
-        }
-
-        foreach (['yaml', 'xml'] as $format) {
-            $definitionProphecy = $this->prophesize(Definition::class);
-            $definitionProphecy->replaceArgument(0, Argument::type('array'))->shouldBeCalled();
-            $containerBuilderProphecy->getDefinition('api_platform.metadata.extractor.'.$format)->willReturn($definitionProphecy->reveal())->shouldBeCalled();
         }
 
         $definitions = [
@@ -1267,15 +1356,27 @@ class ApiPlatformExtensionTest extends TestCase
             'api_platform.json_schema.schema_factory',
             'api_platform.listener.view.validate',
             'api_platform.listener.view.validate_query_parameters',
+            'api_platform.maker.command.data_persister',
+            'api_platform.maker.command.data_provider',
             'api_platform.mercure.listener.response.add_link_header',
             'api_platform.messenger.data_persister',
             'api_platform.messenger.data_transformer',
             'api_platform.metadata.extractor.yaml',
             'api_platform.metadata.property.metadata_factory.annotation',
             'api_platform.metadata.property.metadata_factory.validator',
+            'api_platform.metadata.property_schema.choice_restriction',
+            'api_platform.metadata.property_schema.collection_restriction',
+            'api_platform.metadata.property_schema.count_restriction',
+            'api_platform.metadata.property_schema.greater_than_or_equal_restriction',
+            'api_platform.metadata.property_schema.greater_than_restriction',
             'api_platform.metadata.property_schema.length_restriction',
+            'api_platform.metadata.property_schema.less_than_or_equal_restriction',
+            'api_platform.metadata.property_schema.less_than_restriction',
+            'api_platform.metadata.property_schema.one_of_restriction',
+            'api_platform.metadata.property_schema.range_restriction',
             'api_platform.metadata.property_schema.regex_restriction',
             'api_platform.metadata.property_schema.format_restriction',
+            'api_platform.metadata.property_schema.unique_restriction',
             'api_platform.metadata.property.metadata_factory.yaml',
             'api_platform.metadata.property.name_collection_factory.yaml',
             'api_platform.metadata.resource.filter_metadata_factory.annotation',

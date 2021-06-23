@@ -36,12 +36,16 @@ use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
  *
  * @author Kévin Dunglas <dunglas@gmail.com>
  * @author Théo FIDRY <theo.fidry@gmail.com>
+ *
+ * @final
  */
 class OrderFilter extends AbstractContextAwareFilter implements OrderFilterInterface
 {
     use OrderFilterTrait;
 
-    public function __construct(ManagerRegistry $managerRegistry, ?RequestStack $requestStack = null, string $orderParameterName = 'order', LoggerInterface $logger = null, array $properties = null, NameConverterInterface $nameConverter = null)
+    private $orderNullsComparison;
+
+    public function __construct(ManagerRegistry $managerRegistry, ?RequestStack $requestStack = null, string $orderParameterName = 'order', LoggerInterface $logger = null, array $properties = null, NameConverterInterface $nameConverter = null, ?string $orderNullsComparison = null)
     {
         if (null !== $properties) {
             $properties = array_map(static function ($propertyOptions) {
@@ -59,6 +63,7 @@ class OrderFilter extends AbstractContextAwareFilter implements OrderFilterInter
         parent::__construct($managerRegistry, $requestStack, $logger, $properties, $nameConverter);
 
         $this->orderParameterName = $orderParameterName;
+        $this->orderNullsComparison = $orderNullsComparison;
     }
 
     /**
@@ -102,10 +107,10 @@ class OrderFilter extends AbstractContextAwareFilter implements OrderFilterInter
             [$alias, $field] = $this->addJoinsForNestedProperty($property, $alias, $queryBuilder, $queryNameGenerator, $resourceClass, Join::LEFT_JOIN);
         }
 
-        if (null !== $nullsComparison = $this->properties[$property]['nulls_comparison'] ?? null) {
+        if (null !== $nullsComparison = $this->properties[$property]['nulls_comparison'] ?? $this->orderNullsComparison) {
             $nullsDirection = self::NULLS_DIRECTION_MAP[$nullsComparison][$direction];
 
-            $nullRankHiddenField = sprintf('_%s_%s_null_rank', $alias, $field);
+            $nullRankHiddenField = sprintf('_%s_%s_null_rank', $alias, str_replace('.', '_', $field));
 
             $queryBuilder->addSelect(sprintf('CASE WHEN %s.%s IS NULL THEN 0 ELSE 1 END AS HIDDEN %s', $alias, $field, $nullRankHiddenField));
             $queryBuilder->addOrderBy($nullRankHiddenField, $nullsDirection);

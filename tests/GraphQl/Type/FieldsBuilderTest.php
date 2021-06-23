@@ -503,8 +503,15 @@ class FieldsBuilderTest extends TestCase
             $this->typeConverterProphecy->convertType(new Type(Type::BUILTIN_TYPE_CALLABLE), Argument::type('bool'), $queryName, null, null, '', $resourceClass, $propertyName, 1)->willReturn('NotRegisteredType');
             $this->typeConverterProphecy->convertType(Argument::type(Type::class), Argument::type('bool'), $queryName, null, null, '', $resourceClass, $propertyName, 1)->willReturn(GraphQLType::string());
             $this->typeConverterProphecy->convertType(Argument::type(Type::class), Argument::type('bool'), null, $mutationName, null, '', $resourceClass, $propertyName, 1)->willReturn(GraphQLType::string());
+            if ('propertyObject' === $propertyName) {
+                $this->typeConverterProphecy->convertType(Argument::type(Type::class), Argument::type('bool'), null, $mutationName, null, 'objectClass', $resourceClass, $propertyName, 1)->willReturn(new ObjectType(['name' => 'objectType']));
+                $this->resourceMetadataFactoryProphecy->create('objectClass')->willReturn(new ResourceMetadata());
+                $this->itemResolverFactoryProphecy->__invoke('objectClass', $resourceClass, $queryName)->willReturn(static function () {
+                });
+            }
             $this->typeConverterProphecy->convertType(Argument::type(Type::class), Argument::type('bool'), null, null, $subscriptionName, '', $resourceClass, $propertyName, 1)->willReturn(GraphQLType::string());
             $this->typeConverterProphecy->convertType(Argument::type(Type::class), true, null, $mutationName, null, 'subresourceClass', $propertyName, 1)->willReturn(GraphQLType::string());
+            $this->typeConverterProphecy->convertType(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_STRING)), Argument::type('bool'), $queryName, null, null, '', $resourceClass, $propertyName, 1)->willReturn(GraphQLType::nonNull(GraphQLType::listOf(GraphQLType::nonNull(GraphQLType::string()))));
         }
         $this->typesContainerProphecy->has('NotRegisteredType')->willReturn(false);
         $this->typesContainerProphecy->all()->willReturn([]);
@@ -592,11 +599,30 @@ class FieldsBuilderTest extends TestCase
                     ],
                 ],
             ],
+            'query with simple non-null string array property' => ['resourceClass', new ResourceMetadata(),
+                [
+                    'property' => new PropertyMetadata(new Type(Type::BUILTIN_TYPE_ARRAY, false, null, true, new Type(Type::BUILTIN_TYPE_INT), new Type(Type::BUILTIN_TYPE_STRING)), null, true, false),
+                ],
+                false, 'item_query', null, null, null,
+                [
+                    'id' => [
+                        'type' => GraphQLType::nonNull(GraphQLType::id()),
+                    ],
+                    'property' => [
+                        'type' => GraphQLType::nonNull(GraphQLType::listOf(GraphQLType::nonNull(GraphQLType::string()))),
+                        'description' => null,
+                        'args' => [],
+                        'resolve' => null,
+                        'deprecationReason' => null,
+                    ],
+                ],
+            ],
             'mutation non input' => ['resourceClass', new ResourceMetadata(),
                 [
                     'property' => new PropertyMetadata(),
                     'propertyBool' => new PropertyMetadata(new Type(Type::BUILTIN_TYPE_BOOL), null, false, true),
                     'propertyReadable' => new PropertyMetadata(new Type(Type::BUILTIN_TYPE_BOOL), null, true, true),
+                    'propertyObject' => new PropertyMetadata(new Type(Type::BUILTIN_TYPE_BOOL, false, 'objectClass'), null, true, true),
                 ],
                 false, null, 'mutation', null, null,
                 [
@@ -608,6 +634,14 @@ class FieldsBuilderTest extends TestCase
                         'description' => null,
                         'args' => [],
                         'resolve' => null,
+                        'deprecationReason' => null,
+                    ],
+                    'propertyObject' => [
+                        'type' => GraphQLType::nonNull(new ObjectType(['name' => 'objectType'])),
+                        'description' => null,
+                        'args' => [],
+                        'resolve' => static function () {
+                        },
                         'deprecationReason' => null,
                     ],
                 ],

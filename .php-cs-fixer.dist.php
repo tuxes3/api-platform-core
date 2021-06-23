@@ -14,6 +14,7 @@ HEADER;
 $finder = PhpCsFixer\Finder::create()
     ->in(__DIR__)
     ->exclude([
+        'src/Bridge/Symfony/Maker/Resources/skeleton',
         'tests/Fixtures/app/var',
     ])
     ->notPath('src/Bridge/Symfony/Bundle/DependencyInjection/Configuration.php')
@@ -26,7 +27,7 @@ $finder = PhpCsFixer\Finder::create()
         'tests/Fixtures/app/console',
     ]);
 
-return PhpCsFixer\Config::create()
+return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
     ->setRules([
         '@DoctrineAnnotation' => true,
@@ -41,9 +42,6 @@ return PhpCsFixer\Config::create()
             'comment_type' => 'phpdocs_like',
         ],
         'array_indentation' => true,
-        'array_syntax' => [
-            'syntax' => 'short',
-        ],
         'compact_nullable_typehint' => true,
         'doctrine_annotation_array_assignment' => [
             'operator' => '=',
@@ -103,7 +101,7 @@ return PhpCsFixer\Config::create()
         'phpdoc_add_missing_param_annotation' => [
             'only_untyped' => true,
         ],
-        'phpdoc_no_alias_tag' => false, // Set the rule to true when https://github.com/FriendsOfPHP/PHP-CS-Fixer/issues/5357 is fixed
+        'phpdoc_no_alias_tag' => true,
         'phpdoc_order' => true,
         'phpdoc_trim_consecutive_blank_line_separation' => true,
         'phpdoc_var_annotation_correct_order' => true,

@@ -637,9 +637,7 @@ final class DocumentationNormalizer implements NormalizerInterface, CacheableSup
         $schema = new Schema($v3 ? Schema::VERSION_OPENAPI : Schema::VERSION_SWAGGER);
         $schema->setDefinitions($definitions);
 
-        $this->jsonSchemaFactory->buildSchema($resourceClass, $format, $type, $operationType, $operationName, $schema, $serializerContext, $forceCollection);
-
-        return $schema;
+        return $this->jsonSchemaFactory->buildSchema($resourceClass, $format, $type, $operationType, $operationName, $schema, $serializerContext, $forceCollection);
     }
 
     private function computeDoc(bool $v3, Documentation $documentation, \ArrayObject $definitions, \ArrayObject $paths, array $context): array
@@ -675,10 +673,13 @@ final class DocumentationNormalizer implements NormalizerInterface, CacheableSup
 
         if ($this->oauthEnabled) {
             $oauthAttributes = [
-                'tokenUrl' => $this->oauthTokenUrl,
                 'authorizationUrl' => $this->oauthAuthorizationUrl,
-                'scopes' => $this->oauthScopes,
+                'scopes' => new \ArrayObject($this->oauthScopes),
             ];
+
+            if ($this->oauthTokenUrl) {
+                $oauthAttributes['tokenUrl'] = $this->oauthTokenUrl;
+            }
 
             $securityDefinitions['oauth'] = [
                 'type' => $this->oauthType,

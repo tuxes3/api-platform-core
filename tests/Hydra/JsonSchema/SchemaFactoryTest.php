@@ -15,6 +15,7 @@ namespace ApiPlatform\Core\Tests\Hydra\JsonSchema;
 
 use ApiPlatform\Core\Api\OperationType;
 use ApiPlatform\Core\Hydra\JsonSchema\SchemaFactory;
+use ApiPlatform\Core\JsonLd\ContextBuilder;
 use ApiPlatform\Core\JsonSchema\Schema;
 use ApiPlatform\Core\JsonSchema\SchemaFactory as BaseSchemaFactory;
 use ApiPlatform\Core\JsonSchema\TypeFactoryInterface;
@@ -79,6 +80,29 @@ class SchemaFactoryTest extends TestCase
         $this->assertArrayHasKey('properties', $definitions[$rootDefinitionKey]);
         $properties = $resultSchema['definitions'][$rootDefinitionKey]['properties'];
         $this->assertArrayHasKey('@context', $properties);
+        $this->assertSame(
+            [
+                'readOnly' => true,
+                'oneOf' => [
+                    ['type' => 'string'],
+                    [
+                        'type' => 'object',
+                        'properties' => [
+                            '@vocab' => [
+                                'type' => 'string',
+                            ],
+                            'hydra' => [
+                                'type' => 'string',
+                                'enum' => [ContextBuilder::HYDRA_NS],
+                            ],
+                        ],
+                        'required' => ['@vocab', 'hydra'],
+                        'additionalProperties' => true,
+                    ],
+                ],
+            ],
+            $properties['@context']
+        );
         $this->assertArrayHasKey('@type', $properties);
         $this->assertArrayHasKey('@id', $properties);
     }
@@ -111,5 +135,19 @@ class SchemaFactoryTest extends TestCase
         $this->assertArrayNotHasKey('@context', $properties);
         $this->assertArrayHasKey('@type', $properties);
         $this->assertArrayHasKey('@id', $properties);
+    }
+
+    public function testHasHydraViewNavigationBuildSchema(): void
+    {
+        $resultSchema = $this->schemaFactory->buildSchema(Dummy::class, 'jsonld', Schema::TYPE_OUTPUT, OperationType::COLLECTION);
+
+        $this->assertNull($resultSchema->getRootDefinitionKey());
+        $this->assertArrayHasKey('properties', $resultSchema);
+        $this->assertArrayHasKey('hydra:view', $resultSchema['properties']);
+        $this->assertArrayHasKey('properties', $resultSchema['properties']['hydra:view']);
+        $this->assertArrayHasKey('hydra:first', $resultSchema['properties']['hydra:view']['properties']);
+        $this->assertArrayHasKey('hydra:last', $resultSchema['properties']['hydra:view']['properties']);
+        $this->assertArrayHasKey('hydra:previous', $resultSchema['properties']['hydra:view']['properties']);
+        $this->assertArrayHasKey('hydra:next', $resultSchema['properties']['hydra:view']['properties']);
     }
 }

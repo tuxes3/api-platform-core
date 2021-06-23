@@ -35,12 +35,13 @@ parameters:
 		- tests/Bridge/Symfony/Bundle/Test/WebTestCaseTest.php
 		- tests/ProphecyTrait.php
 		- tests/Behat/CoverageContext.php
+		- tests/Fixtures/TestBundle/Security/AbstractSecurityUser.php
+		# Templates for Maker
+		- src/Bridge/Symfony/Maker/Resources/skeleton
 	earlyTerminatingMethodCalls:
 		PHPUnit\Framework\Constraint\Constraint:
 			- fail
 	ignoreErrors:
-		# Real problems, hard to fix
-		- '#Parameter \#2 \$dqlPart of method Doctrine\\ORM\\QueryBuilder::add\(\) expects array\|object, string given\.#'
 		# False positives
 		-
 			message: '#Strict comparison using !== between .+ and .+ will always evaluate to false\.#'
@@ -85,12 +86,6 @@ parameters:
 		-
 			message: '#Service "test" is not registered in the container\.#'
 			path: tests/GraphQl/Type/TypesContainerTest.php
-		-
-			message: '#Property Doctrine\\ORM\\Mapping\\ClassMetadataInfo::\$fieldMappings \(array.*\)>\) does not accept array\(.*\)\.#'
-			path: tests/Bridge/Doctrine/Orm/Metadata/Property/DoctrineOrmPropertyMetadataFactoryTest.php
-
-		# Expected, Symfony 5.3
-		- '#getCollectionValueT|getCollectionKeyTyp#'
 
 		# Expected, due to PHP 8 attributes
 		- '#ReflectionProperty::getAttributes\(\)#'

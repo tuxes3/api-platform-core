@@ -690,6 +690,21 @@ class SearchFilterTest extends DoctrineMongoDbOdmFilterTestCase
                     [],
                     $filterFactory,
                 ],
+                'integer value' => [
+                    [
+                        [
+                            '$match' => [
+                                'age' => [
+                                    '$in' => [
+                                        '46',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                    $filterFactory,
+                    RelatedDummy::class,
+                ],
             ]
         );
     }
@@ -710,7 +725,7 @@ class SearchFilterTest extends DoctrineMongoDbOdmFilterTestCase
         });
 
         $iriConverter = $iriConverterProphecy->reveal();
-        $propertyAccessor = self::$kernel->getContainer()->get('test.property_accessor');
+        $propertyAccessor = static::$kernel->getContainer()->get('test.property_accessor');
 
         $identifierExtractorProphecy = $this->prophesize(IdentifiersExtractorInterface::class);
         $identifierExtractorProphecy->getIdentifiersFromResourceClass(Argument::type('string'))->willReturn(['id']);

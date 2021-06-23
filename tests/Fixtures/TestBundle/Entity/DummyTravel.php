@@ -17,7 +17,7 @@ use ApiPlatform\Core\Annotation\ApiResource;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * @ApiResource
+ * @ApiResource(filters={"dummy_travel.property"})
  * @ORM\Entity
  */
 class DummyTravel

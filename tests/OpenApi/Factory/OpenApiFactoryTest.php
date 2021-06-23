@@ -30,7 +30,6 @@ use ApiPlatform\Core\Metadata\Resource\ResourceMetadata;
 use ApiPlatform\Core\Metadata\Resource\ResourceNameCollection;
 use ApiPlatform\Core\OpenApi\Factory\OpenApiFactory;
 use ApiPlatform\Core\OpenApi\Model;
-use ApiPlatform\Core\OpenApi\Model\PathItem;
 use ApiPlatform\Core\OpenApi\OpenApi;
 use ApiPlatform\Core\OpenApi\Options;
 use ApiPlatform\Core\OpenApi\Serializer\OpenApiNormalizer;
@@ -40,6 +39,7 @@ use ApiPlatform\Core\Operation\UnderscorePathSegmentNameGenerator;
 use ApiPlatform\Core\PathResolver\CustomOperationPathResolver;
 use ApiPlatform\Core\PathResolver\OperationPathResolver;
 use ApiPlatform\Core\Tests\Fixtures\DummyFilter;
+use ApiPlatform\Core\Tests\Fixtures\TestBundle\Dto\OutputDto;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Answer;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Dummy;
 use ApiPlatform\Core\Tests\Fixtures\TestBundle\Entity\Question;
@@ -76,9 +76,29 @@ class OpenApiFactoryTest extends TestCase
                 'put' => ['method' => 'PUT'] + self::OPERATION_FORMATS,
                 'delete' => ['method' => 'DELETE'] + self::OPERATION_FORMATS,
                 'custom' => ['method' => 'HEAD', 'path' => '/foo/{id}', 'openapi_context' => [
+                    'x-visibility' => 'hide',
                     'description' => 'Custom description',
                     'parameters' => [
-                        ['description' => 'Test parameter', 'name' => 'param', 'in' => 'path', 'type' => 'string', 'required' => true, 'default' => 'BOTH'],
+                        ['description' => 'Test parameter', 'name' => 'param', 'in' => 'path', 'required' => true],
+                        ['description' => 'Replace parameter', 'name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'string', 'format' => 'uuid']],
+                    ],
+                    'tags' => ['Dummy', 'Profile'],
+                    'responses' => [
+                        '202' => [
+                            'description' => 'Success',
+                            'content' => [
+                                'application/json' => [
+                                    'schema' => ['$ref' => '#/components/schemas/Dummy'],
+                                ],
+                            ],
+                            'headers' => [
+                                'Foo' => ['description' => 'A nice header', 'schema' => ['type' => 'integer']],
+                            ],
+                            'links' => [
+                                'Foo' => ['$ref' => '#/components/schemas/Dummy'],
+                            ],
+                        ],
+                        '205' => [],
                     ],
                     'requestBody' => [
                         'required' => true,
@@ -98,15 +118,23 @@ class OpenApiFactoryTest extends TestCase
                         ],
                     ],
                 ]] + self::OPERATION_FORMATS,
+                'custom-http-verb' => ['method' => 'TEST'] + self::OPERATION_FORMATS,
                 'formats' => ['method' => 'PUT', 'path' => '/formatted/{id}', 'output_formats' => ['json' => ['application/json'], 'csv' => ['text/csv']], 'input_formats' => ['json' => ['application/json'], 'csv' => ['text/csv']]],
             ],
             [
-                'get' => ['method' => 'GET'] + self::OPERATION_FORMATS,
+                'get' => ['method' => 'GET', 'openapi_context' => [
+                    'parameters' => [
+                        ['description' => 'Test modified collection page number', 'name' => 'page', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'default' => 1], 'allowEmptyValue' => true],
+                    ],
+                ]] + self::OPERATION_FORMATS,
                 'post' => ['method' => 'POST'] + self::OPERATION_FORMATS,
                 'filtered' => ['method' => 'GET', 'filters' => ['f1', 'f2', 'f3', 'f4', 'f5'], 'path' => '/filtered'] + self::OPERATION_FORMATS,
                 'paginated' => ['method' => 'GET', 'pagination_client_enabled' => true, 'pagination_client_items_per_page' => true, 'pagination_items_per_page' => 20, 'pagination_maximum_items_per_page' => 80, 'path' => '/paginated'] + self::OPERATION_FORMATS,
             ],
-            ['pagination_client_items_per_page' => true]
+            [
+                'pagination_client_items_per_page' => true,
+                'output' => ['class' => OutputDto::class],
+            ]
         );
 
         $subresourceOperationFactoryProphecy = $this->prophesize(SubresourceOperationFactoryInterface::class);
@@ -120,13 +148,19 @@ class OpenApiFactoryTest extends TestCase
 
         $propertyNameCollectionFactoryProphecy = $this->prophesize(PropertyNameCollectionFactoryInterface::class);
         $propertyNameCollectionFactoryProphecy->create(Dummy::class, Argument::any())->shouldBeCalled()->willReturn(new PropertyNameCollection(['id', 'name', 'description', 'dummyDate', 'enum']));
+        $propertyNameCollectionFactoryProphecy->create(OutputDto::class, Argument::any())->shouldBeCalled()->willReturn(new PropertyNameCollection(['id', 'name', 'description', 'dummyDate', 'enum']));
 
         $propertyMetadataFactoryProphecy = $this->prophesize(PropertyMetadataFactoryInterface::class);
-        $propertyMetadataFactoryProphecy->create(Dummy::class, 'id', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_INT), 'This is an id.', true, false, null, null, null, true, null, null, null, null, null, null, null, ['minLength' => 3, 'maxLength' => 20, 'pattern' => '^dummyPattern$']));
-        $propertyMetadataFactoryProphecy->create(Dummy::class, 'name', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is a name.', true, true, true, true, false, false, null, null, [], null, null, null, null));
+        $propertyMetadataFactoryProphecy->create(Dummy::class, 'id', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_INT), 'This is an id.', true, false, null, null, null, true, null, null, null, null, null, null, null));
+        $propertyMetadataFactoryProphecy->create(Dummy::class, 'name', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is a name.', true, true, true, true, false, false, null, null, [], null, null, null, null, ['minLength' => 3, 'maxLength' => 20, 'pattern' => '^dummyPattern$']));
         $propertyMetadataFactoryProphecy->create(Dummy::class, 'description', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is an initializable but not writable property.', true, false, true, true, false, false, null, null, [], null, true));
         $propertyMetadataFactoryProphecy->create(Dummy::class, 'dummyDate', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_OBJECT, true, \DateTime::class), 'This is a \DateTimeInterface object.', true, true, true, true, false, false, null, null, []));
         $propertyMetadataFactoryProphecy->create(Dummy::class, 'enum', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is an enum.', true, true, true, true, false, false, null, null, ['openapi_context' => ['type' => 'string', 'enum' => ['one', 'two'], 'example' => 'one']]));
+        $propertyMetadataFactoryProphecy->create(OutputDto::class, 'id', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_INT), 'This is an id.', true, false, null, null, null, true, null, null, null, null, null, null, null));
+        $propertyMetadataFactoryProphecy->create(OutputDto::class, 'name', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is a name.', true, true, true, true, false, false, null, null, [], null, null, null, null, ['minLength' => 3, 'maxLength' => 20, 'pattern' => '^dummyPattern$']));
+        $propertyMetadataFactoryProphecy->create(OutputDto::class, 'description', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is an initializable but not writable property.', true, false, true, true, false, false, null, null, [], null, true));
+        $propertyMetadataFactoryProphecy->create(OutputDto::class, 'dummyDate', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_OBJECT, true, \DateTime::class), 'This is a \DateTimeInterface object.', true, true, true, true, false, false, null, null, []));
+        $propertyMetadataFactoryProphecy->create(OutputDto::class, 'enum', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is an enum.', true, true, true, true, false, false, null, null, ['openapi_context' => ['type' => 'string', 'enum' => ['one', 'two'], 'example' => 'one']]));
 
         $operationPathResolver = new CustomOperationPathResolver(new OperationPathResolver(new UnderscorePathSegmentNameGenerator()));
 
@@ -137,7 +171,7 @@ class OpenApiFactoryTest extends TestCase
                 'type' => 'string',
                 'required' => true,
                 'strategy' => 'exact',
-                'openapi' => ['example' => 'bar', 'deprecated' => true, 'allowEmptyValue' => true, 'allowReserved' => true],
+                'openapi' => ['example' => 'bar', 'deprecated' => true, 'allowEmptyValue' => true, 'allowReserved' => true, 'explode' => true],
             ]]),
             'f2' => new DummyFilter(['ha' => [
                 'property' => 'foo',
@@ -217,13 +251,13 @@ class OpenApiFactoryTest extends TestCase
                     'type' => 'integer',
                     'description' => 'This is an id.',
                     'readOnly' => true,
-                    'minLength' => 3,
-                    'maxLength' => 20,
-                    'pattern' => '^dummyPattern$',
                 ]),
                 'name' => new \ArrayObject([
                     'type' => 'string',
                     'description' => 'This is a name.',
+                    'minLength' => 3,
+                    'maxLength' => 20,
+                    'pattern' => '^dummyPattern$',
                 ]),
                 'description' => new \ArrayObject([
                     'type' => 'string',
@@ -254,7 +288,7 @@ class OpenApiFactoryTest extends TestCase
         $components = $openApi->getComponents();
         $this->assertInstanceOf(Model\Components::class, $components);
 
-        $this->assertEquals($components->getSchemas(), new \ArrayObject(['Dummy' => $dummySchema->getDefinitions()]));
+        $this->assertEquals($components->getSchemas(), new \ArrayObject(['Dummy' => $dummySchema->getDefinitions(), 'Dummy.OutputDto' => $dummySchema->getDefinitions()]));
 
         $this->assertEquals($components->getSecuritySchemes(), new \ArrayObject([
             'oauth' => new Model\SecurityScheme('oauth2', 'OAuth 2.0 authorization code Grant', null, null, null, null, new Model\OAuthFlows(null, null, null, new Model\OAuthFlow('/oauth/v2/auth', '/oauth/v2/token', '/oauth/v2/refresh', new \ArrayObject(['scope param'])))),
@@ -282,7 +316,7 @@ class OpenApiFactoryTest extends TestCase
                 '200' => new Model\Response('Dummy collection', new \ArrayObject([
                     'application/ld+json' => new Model\MediaType(new \ArrayObject(new \ArrayObject([
                         'type' => 'array',
-                        'items' => ['$ref' => '#/components/schemas/Dummy'],
+                        'items' => ['$ref' => '#/components/schemas/Dummy.OutputDto'],
                     ]))),
                 ])),
             ],
@@ -290,7 +324,7 @@ class OpenApiFactoryTest extends TestCase
             'Retrieves the collection of Dummy resources.',
             null,
             [
-                new Model\Parameter('page', 'query', 'The collection page number', false, false, true, [
+                new Model\Parameter('page', 'query', 'Test modified collection page number', false, false, true, [
                     'type' => 'integer',
                     'default' => 1,
                 ]),
@@ -312,10 +346,10 @@ class OpenApiFactoryTest extends TestCase
                 '201' => new Model\Response(
                     'Dummy resource created',
                     new \ArrayObject([
-                        'application/ld+json' => new Model\MediaType(new \ArrayObject(new \ArrayObject(['$ref' => '#/components/schemas/Dummy']))),
+                        'application/ld+json' => new Model\MediaType(new \ArrayObject(new \ArrayObject(['$ref' => '#/components/schemas/Dummy.OutputDto']))),
                     ]),
                     null,
-                    new \ArrayObject(['GetDummyItem' => new Model\Link('getDummyItem', new \ArrayObject(['id' => '$response.body#/id']), [], 'The `id` value returned in the response can be used as the `id` parameter in `GET /dummies/{id}`.')])
+                    new \ArrayObject(['GetDummyItem' => new Model\Link('getDummyItem', new \ArrayObject(['id' => '$response.body#/id']), null, 'The `id` value returned in the response can be used as the `id` parameter in `GET /dummies/{id}`.')])
                 ),
                 '400' => new Model\Response('Invalid input'),
                 '422' => new Model\Response('Unprocessable entity'),
@@ -346,7 +380,7 @@ class OpenApiFactoryTest extends TestCase
                 '200' => new Model\Response(
                     'Dummy resource',
                     new \ArrayObject([
-                        'application/ld+json' => new Model\MediaType(new \ArrayObject(new \ArrayObject(['$ref' => '#/components/schemas/Dummy']))),
+                        'application/ld+json' => new Model\MediaType(new \ArrayObject(new \ArrayObject(['$ref' => '#/components/schemas/Dummy.OutputDto']))),
                     ])
                 ),
                 '404' => new Model\Response('Resource not found'),
@@ -364,10 +398,10 @@ class OpenApiFactoryTest extends TestCase
                 '200' => new Model\Response(
                     'Dummy resource updated',
                     new \ArrayObject([
-                        'application/ld+json' => new Model\MediaType(new \ArrayObject(['$ref' => '#/components/schemas/Dummy'])),
+                        'application/ld+json' => new Model\MediaType(new \ArrayObject(['$ref' => '#/components/schemas/Dummy.OutputDto'])),
                     ]),
                     null,
-                    new \ArrayObject(['GetDummyItem' => new Model\Link('getDummyItem', new \ArrayObject(['id' => '$response.body#/id']), [], 'The `id` value returned in the response can be used as the `id` parameter in `GET /dummies/{id}`.')])
+                    new \ArrayObject(['GetDummyItem' => new Model\Link('getDummyItem', new \ArrayObject(['id' => '$response.body#/id']), null, 'The `id` value returned in the response can be used as the `id` parameter in `GET /dummies/{id}`.')])
                 ),
                 '400' => new Model\Response('Invalid input'),
                 '422' => new Model\Response('Unprocessable entity'),
@@ -402,14 +436,24 @@ class OpenApiFactoryTest extends TestCase
         $customPath = $paths->getPath('/foo/{id}');
         $this->assertEquals($customPath->getHead(), new Model\Operation(
             'customDummyItem',
-            ['Dummy'],
+            ['Dummy', 'Profile'],
             [
+                '202' => new Model\Response('Success', new \ArrayObject([
+                    'application/json' => [
+                        'schema' => ['$ref' => '#/components/schemas/Dummy'],
+                    ],
+                ]), new \ArrayObject([
+                    'Foo' => ['description' => 'A nice header', 'schema' => ['type' => 'integer']],
+                ]), new \ArrayObject([
+                    'Foo' => ['$ref' => '#/components/schemas/Dummy'],
+                ])),
+                '205' => new Model\Response(),
                 '404' => new Model\Response('Resource not found'),
             ],
             'Dummy',
             'Custom description',
             null,
-            [new Model\Parameter('param', 'path', 'Test parameter', true), new Model\Parameter('id', 'path', 'Resource identifier', true, false, false, ['type' => 'string'])],
+            [new Model\Parameter('param', 'path', 'Test parameter', true), new Model\Parameter('id', 'path', 'Replace parameter', true, false, false, ['type' => 'string', 'format' => 'uuid'])],
             new Model\RequestBody('Custom request body', new \ArrayObject([
                 'multipart/form-data' => [
                     'schema' => [
@@ -422,7 +466,12 @@ class OpenApiFactoryTest extends TestCase
                         ],
                     ],
                 ],
-            ]), true)
+            ]), true),
+            null,
+            false,
+            null,
+            null,
+            ['x-visibility' => 'hide']
         ));
 
         $formattedPath = $paths->getPath('/formatted/{id}');
@@ -433,11 +482,11 @@ class OpenApiFactoryTest extends TestCase
                 '200' => new Model\Response(
                     'Dummy resource updated',
                     new \ArrayObject([
-                        'application/json' => new Model\MediaType(new \ArrayObject(['$ref' => '#/components/schemas/Dummy'])),
-                        'text/csv' => new Model\MediaType(new \ArrayObject(['$ref' => '#/components/schemas/Dummy'])),
+                        'application/json' => new Model\MediaType(new \ArrayObject(['$ref' => '#/components/schemas/Dummy.OutputDto'])),
+                        'text/csv' => new Model\MediaType(new \ArrayObject(['$ref' => '#/components/schemas/Dummy.OutputDto'])),
                     ]),
                     null,
-                    new \ArrayObject(['GetDummyItem' => new Model\Link('getDummyItem', new \ArrayObject(['id' => '$response.body#/id']), [], 'The `id` value returned in the response can be used as the `id` parameter in `GET /dummies/{id}`.')])
+                    new \ArrayObject(['GetDummyItem' => new Model\Link('getDummyItem', new \ArrayObject(['id' => '$response.body#/id']), null, 'The `id` value returned in the response can be used as the `id` parameter in `GET /dummies/{id}`.')])
                 ),
                 '400' => new Model\Response('Invalid input'),
                 '422' => new Model\Response('Unprocessable entity'),
@@ -465,7 +514,7 @@ class OpenApiFactoryTest extends TestCase
                 '200' => new Model\Response('Dummy collection', new \ArrayObject([
                     'application/ld+json' => new Model\MediaType(new \ArrayObject([
                         'type' => 'array',
-                        'items' => ['$ref' => '#/components/schemas/Dummy'],
+                        'items' => ['$ref' => '#/components/schemas/Dummy.OutputDto'],
                     ])),
                 ])),
             ],
@@ -487,7 +536,7 @@ class OpenApiFactoryTest extends TestCase
                 ]),
                 new Model\Parameter('name', 'query', '', true, true, true, [
                     'type' => 'string',
-                ], 'form', false, true, 'bar'),
+                ], 'form', true, true, 'bar'),
                 new Model\Parameter('ha', 'query', '', false, false, true, [
                     'type' => 'integer',
                 ]),
@@ -510,7 +559,7 @@ class OpenApiFactoryTest extends TestCase
                 '200' => new Model\Response('Dummy collection', new \ArrayObject([
                     'application/ld+json' => new Model\MediaType(new \ArrayObject([
                         'type' => 'array',
-                        'items' => ['$ref' => '#/components/schemas/Dummy'],
+                        'items' => ['$ref' => '#/components/schemas/Dummy.OutputDto'],
                     ])),
                 ])),
             ],
@@ -537,8 +586,6 @@ class OpenApiFactoryTest extends TestCase
 
     public function testOverrideDocumentation()
     {
-        $defaultContext = ['base_url' => '/app_dev.php/'];
-
         $dummyMetadata = new ResourceMetadata(
             'Dummy',
             'This is a dummy.',
@@ -567,8 +614,8 @@ class OpenApiFactoryTest extends TestCase
         $propertyNameCollectionFactoryProphecy = $this->prophesize(PropertyNameCollectionFactoryInterface::class);
         $propertyNameCollectionFactoryProphecy->create(Dummy::class, Argument::any())->shouldBeCalled()->willReturn(new PropertyNameCollection(['id', 'name', 'description', 'dummyDate']));
         $propertyMetadataFactoryProphecy = $this->prophesize(PropertyMetadataFactoryInterface::class);
-        $propertyMetadataFactoryProphecy->create(Dummy::class, 'id', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_INT), 'This is an id.', true, false, null, null, null, true, null, null, null, null, null, null, null, ['minLength' => 3, 'maxLength' => 20, 'pattern' => '^dummyPattern$']));
-        $propertyMetadataFactoryProphecy->create(Dummy::class, 'name', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is a name.', true, true, true, true, false, false, null, null, [], null, null, null, null));
+        $propertyMetadataFactoryProphecy->create(Dummy::class, 'id', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_INT), 'This is an id.', true, false, null, null, null, true, null, null, null, null, null, null, null));
+        $propertyMetadataFactoryProphecy->create(Dummy::class, 'name', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is a name.', true, true, true, true, false, false, null, null, [], null, null, null, null, ['minLength' => 3, 'maxLength' => 20, 'pattern' => '^dummyPattern$']));
         $propertyMetadataFactoryProphecy->create(Dummy::class, 'description', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_STRING), 'This is an initializable but not writable property.', true, false, true, true, false, false, null, null, [], null, true));
         $propertyMetadataFactoryProphecy->create(Dummy::class, 'dummyDate', Argument::any())->shouldBeCalled()->willReturn(new PropertyMetadata(new Type(Type::BUILTIN_TYPE_OBJECT, true, \DateTime::class), 'This is a \DateTimeInterface object.', true, true, true, true, false, false, null, null, []));
 
@@ -749,17 +796,21 @@ class OpenApiFactoryTest extends TestCase
 
     public function testResetPathItem()
     {
-        $pathItem = new PathItem();
-        $pathItem->withGet(null);
-        $pathItem->withDelete(null);
-        $pathItem->withPost(null);
-        $pathItem->withPut(null);
-        $pathItem->withPatch(null);
+        $pathItem = new Model\PathItem(
+            null,
+            '',
+            '',
+            new Model\Operation(),
+            new Model\Operation(),
+            new Model\Operation(),
+            new Model\Operation(),
+            new Model\Operation()
+        );
 
-        $this->assertNull($pathItem->getGet());
-        $this->assertNull($pathItem->getDelete());
-        $this->assertNull($pathItem->getPost());
-        $this->assertNull($pathItem->getPut());
-        $this->assertNull($pathItem->getPatch());
+        $this->assertNull($pathItem->withGet(null)->getGet());
+        $this->assertNull($pathItem->withDelete(null)->getDelete());
+        $this->assertNull($pathItem->withPost(null)->getPost());
+        $this->assertNull($pathItem->withPut(null)->getPut());
+        $this->assertNull($pathItem->withPatch(null)->getPatch());
     }
 }

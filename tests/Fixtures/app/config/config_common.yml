@@ -8,8 +8,7 @@ doctrine:
         path:                         '%kernel.cache_dir%/db.sqlite'
         charset:                      'UTF8'
         types:
-            uuid: Ramsey\Uuid\Doctrine\UuidType
-            uuid_binary: Ramsey\Uuid\Doctrine\UuidBinaryType
+            uuid:  Ramsey\Uuid\Doctrine\UuidType
 
     orm:
         auto_generate_proxy_classes:   '%kernel.debug%'
@@ -26,7 +25,6 @@ api_platform:
     description: |
         This is a test API.
         Made with love
-    allow_plain_identifiers:           true
     formats:
         jsonld:                        ['application/ld+json']
         jsonhal:                       ['application/hal+json']
@@ -47,6 +45,13 @@ api_platform:
     collection:
         order_parameter_name:          'order'
         order:                         'ASC'
+    oauth:
+        enabled: true
+        clientId: my_client
+        type: 'oauth2'
+        flow: 'implicit'
+        authorizationUrl: 'http://my-custom-server/openid-connect/auth'
+        scopes: []
     exception_to_status:
         Symfony\Component\Serializer\Exception\ExceptionInterface: !php/const Symfony\Component\HttpFoundation\Response::HTTP_BAD_REQUEST
         ApiPlatform\Core\Exception\InvalidArgumentException: !php/const Symfony\Component\HttpFoundation\Response::HTTP_BAD_REQUEST
@@ -61,7 +66,6 @@ api_platform:
         pagination_client_items_per_page:     true
         pagination_client_partial:            true
         pagination_items_per_page:            3
-        order:                                'ASC'
         cache_headers:
             max_age:                          60
             shared_max_age:                   3600
@@ -113,12 +117,30 @@ services:
         tags:
             -  { name: 'serializer.normalizer' }
 
+    app.serializer.denormalizer.related_dummy_plain_identifier:
+        class: 'ApiPlatform\Core\Tests\Fixtures\TestBundle\Serializer\Denormalizer\RelatedDummyPlainIdentifierDenormalizer'
+        public: false
+        arguments: ['@api_platform.iri_converter']
+        tags:
+            -  { name: 'serializer.normalizer' }
+
+    app.serializer.denormalizer.dummy_plain_identifier:
+        class: 'ApiPlatform\Core\Tests\Fixtures\TestBundle\Serializer\Denormalizer\DummyPlainIdentifierDenormalizer'
+        public: false
+        arguments: ['@api_platform.iri_converter']
+        tags:
+            -  { name: 'serializer.normalizer' }
+
     app.name_converter:
         class: 'ApiPlatform\Core\Tests\Fixtures\TestBundle\Serializer\NameConverter\CustomConverter'
 
     app.my_dummy_resource.property_filter:
         parent:    'api_platform.serializer.property_filter'
         tags:      [ { name: 'api_platform.filter', id: 'my_dummy.property' } ]
+
+    app.dummy_travel_resource.property_filter:
+        parent: 'api_platform.serializer.property_filter'
+        tags: [ { name: 'api_platform.filter', id: 'dummy_travel.property' } ]
 
     ApiPlatform\Core\Tests\Fixtures\TestBundle\Filter\RequiredFilter:
         arguments: ['@doctrine']
@@ -222,10 +244,11 @@ services:
         class: ApiPlatform\Core\Tests\Fixtures\TestBundle\Validator\DummyValidationGroupsGenerator
         public: true
 
-    mercure.hub.default.publisher:
-        class: ApiPlatform\Core\Tests\Fixtures\DummyMercurePublisher
+    mercure.hub.default.message_handler:
+        class: ApiPlatform\Core\Tests\Fixtures\DummyMercureUpdateHandler
         public: true
         tags: ['messenger.message_handler']
+    mercure.hub.default.publisher: '@mercure.hub.default.message_handler'
 
     app.serializer.normalizer.override_documentation:
         class: ApiPlatform\Core\Tests\Fixtures\TestBundle\Serializer\Normalizer\OverrideDocumentationNormalizer

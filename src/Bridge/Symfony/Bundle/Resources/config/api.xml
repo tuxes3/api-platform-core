@@ -111,6 +111,7 @@
             <argument type="service" id="api_platform.name_converter" on-invalid="ignore" />
             <argument type="service" id="serializer.mapping.class_metadata_factory" on-invalid="ignore" />
             <argument type="service" id="api_platform.item_data_provider" on-invalid="ignore" />
+            <!-- TODO: to remove in 3.0 -->
             <argument>%api_platform.allow_plain_identifiers%</argument>
             <argument>null</argument>
             <argument type="tagged" tag="api_platform.data_transformer" on-invalid="ignore" />
@@ -119,6 +120,10 @@
 
             <!-- Run before serializer.normalizer.json_serializable -->
             <tag name="serializer.normalizer" priority="-895" />
+        </service>
+
+        <service id="api_platform.serializer.mapping.class_metadata_factory" class="ApiPlatform\Core\Serializer\Mapping\Factory\ClassMetadataFactory" decorates="serializer.mapping.class_metadata_factory" decoration-priority="-1" public="false">
+            <argument type="service" id="api_platform.serializer.mapping.class_metadata_factory.inner" />
         </service>
 
         <!-- Resources Operations path resolver -->
@@ -249,6 +254,7 @@
             <argument type="service" id="api_platform.serializer" />
             <argument>%api_platform.error_formats%</argument>
             <argument>%api_platform.exception_to_status%</argument>
+            <argument type="service" id="api_platform.metadata.resource.metadata_factory" />
         </service>
 
         <!-- Identifiers -->
