@@ -42,6 +42,19 @@ Alternatively, you can also work with the test application we provide:
     # or if you prefer using the PHP built-in web server
     php -S localhost:8000 -t public/
 
+
+The Symfony binary can also take a working directory:
+
+```
+symfony server:start --dir tests/Fixtures/app`
+```
+
+Note that a console application is also available at:
+
+```
+APP_DEBUG=1 tests/Fixtures/app/console debug:router
+```
+
 ### Matching Coding Standards
 
 The API Platform project follows [Symfony coding standards](https://symfony.com/doc/current/contributing/code/standards.html).
