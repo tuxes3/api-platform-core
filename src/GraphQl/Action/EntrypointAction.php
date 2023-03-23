@@ -119,7 +119,8 @@ final class EntrypointAction
             $query = $request->getContent();
         }
 
-        if ('multipart' === $request->getContentType()) {
+        $contentType = method_exists(Request::class, 'getContentTypeFormat') ? $request->getContentTypeFormat() : $request->getContentType();
+        if (in_array($contentType, ['multipart', 'form'], true)) {
             return $this->parseMultipartRequest($query, $operationName, $variables, $request->request->all(), $request->files->all());
         }
 
