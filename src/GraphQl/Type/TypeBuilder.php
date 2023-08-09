@@ -166,7 +166,7 @@ final class TypeBuilder implements ContextAwareTypeBuilderInterface
         $shortName = method_exists($namedType, 'name') ? $namedType->name() : $namedType->name;
         $paginationType = $this->pagination->getGraphQlPaginationType($operation);
 
-        $connectionTypeKey = sprintf('%s%sConnection', $shortName, ucfirst($paginationType));
+        $connectionTypeKey = sprintf('%sConnection', $shortName);
         if ($this->typesContainer->has($connectionTypeKey)) {
             return $this->typesContainer->get($connectionTypeKey);
         }
