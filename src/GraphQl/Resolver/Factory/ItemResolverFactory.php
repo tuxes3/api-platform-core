@@ -61,6 +61,11 @@ final class ItemResolverFactory implements ResolverFactoryInterface
             }
 
             $resourceClass = $operation->getOutput()['class'] ?? $resourceClass;
+            // to prevent the error where a nullable array is returned but removed from the source (special case with our denormalization)
+            if ($info->returnType->name === 'Iterable' && $item === null && $resourceClass === null) {
+                return null;
+            }
+            
             // The item retrieved can be of another type when using an identifier (see Relay Nodes at query.feature:23)
             $resourceClass = $this->getResourceClass($item, $resourceClass);
             $queryResolverId = $operation->getResolver();
