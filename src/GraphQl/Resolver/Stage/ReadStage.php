@@ -59,8 +59,9 @@ final class ReadStage implements ReadStageInterface
                     throw new NotFoundHttpException(\sprintf('Item "%s" not found.', $args['input']['id']));
                 }
 
-                if ($resourceClass !== $this->getObjectClass($item)) {
-                    throw new \UnexpectedValueException(\sprintf('Item "%s" did not match expected type "%s".', $args['input']['id'], $operation->getShortName()));
+                $objectClass = $this->getObjectClass($item);
+                if ($resourceClass !== $objectClass && !is_subclass_of($objectClass, $resourceClass)) {
+                    throw new \UnexpectedValueException(sprintf('Item "%s" did not match expected type "%s".', $args['input']['id'], $operation->getShortName()));
                 }
             }
 
