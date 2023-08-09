@@ -13,7 +13,6 @@ declare(strict_types=1);
 
 namespace ApiPlatform\Core\GraphQl\Resolver\Factory;
 
-use ApiPlatform\Core\GraphQl\Resolver\MutationResolverInterface;
 use ApiPlatform\Core\GraphQl\Resolver\Stage\DeserializeStageInterface;
 use ApiPlatform\Core\GraphQl\Resolver\Stage\ReadStageInterface;
 use ApiPlatform\Core\GraphQl\Resolver\Stage\SecurityPostDenormalizeStageInterface;
@@ -24,6 +23,7 @@ use ApiPlatform\Core\GraphQl\Resolver\Stage\WriteStageInterface;
 use ApiPlatform\Core\Metadata\Resource\Factory\ResourceMetadataFactoryInterface;
 use ApiPlatform\Core\Util\ClassInfoTrait;
 use ApiPlatform\Core\Util\CloneTrait;
+use ApiPlatform\GraphQl\Resolver\MutationResolverInterface;
 use GraphQL\Type\Definition\ResolveInfo;
 use Psr\Container\ContainerInterface;
 
@@ -90,9 +90,10 @@ final class ItemMutationResolverFactory implements ResolverFactoryInterface
                         'previous_object' => $previousItem,
                     ],
                 ]);
-                $item = ($this->writeStage)($item, $resourceClass, $operationName, $resolverContext);
+                $itemBeforeDelete = ($this->serializeStage)($item, $resourceClass, $operationName, $resolverContext);
+                ($this->writeStage)($item, $resourceClass, $operationName, $resolverContext);
 
-                return ($this->serializeStage)($item, $resourceClass, $operationName, $resolverContext);
+                return $itemBeforeDelete;
             }
 
             $item = ($this->deserializeStage)($item, $resourceClass, $operationName, $resolverContext);

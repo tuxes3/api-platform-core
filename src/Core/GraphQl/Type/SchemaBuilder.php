@@ -89,11 +89,15 @@ final class SchemaBuilder implements SchemaBuilderInterface
                     continue;
                 }
 
-                if ('update' === $operationName) {
+                $isInterface = (new \ReflectionClass($resourceClass))->isAbstract();
+
+                if (!$isInterface && 'update' === $operationName) {
                     $subscriptionFields += $this->fieldsBuilder->getSubscriptionFields($resourceClass, $resourceMetadata, $operationName);
                 }
 
-                $mutationFields += $this->fieldsBuilder->getMutationFields($resourceClass, $resourceMetadata, $operationName);
+                if (!$isInterface || 'create' !== $operationName) {
+                    $mutationFields += $this->fieldsBuilder->getMutationFields($resourceClass, $resourceMetadata, $operationName);
+                }
             }
         }
 

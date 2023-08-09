@@ -71,6 +71,11 @@ final class ItemResolverFactory implements ResolverFactoryInterface
                 throw new \LogicException('Item from read stage should be a nullable object.');
             }
 
+            // to prevent the error where a nullable array is returned but removed from the source (special case with our denormalization)
+            if ($info->returnType->name === 'Iterable' && $item === null && $resourceClass === null) {
+                return null;
+            }
+
             $resourceClass = $this->getResourceClass($item, $resourceClass);
             $resourceMetadata = $this->resourceMetadataFactory->create($resourceClass);
 

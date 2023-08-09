@@ -93,6 +93,9 @@ final class SubscriptionManager implements SubscriptionManagerInterface
             $resolverContext = ['fields' => $subscriptionFields, 'is_collection' => false, 'is_mutation' => false, 'is_subscription' => true];
 
             $data = ($this->serializeStage)($object, $resourceClass, 'update', $resolverContext);
+            $rootObject = array_keys($data)[0];
+            $data[$rootObject]['__typename'] = $this->resourceMetadataFactory->create($resourceClass)->getShortName();
+            $data[$rootObject]['id'] = $iri;
             unset($data['clientSubscriptionId']);
 
             if ($data !== $subscriptionResult) {
