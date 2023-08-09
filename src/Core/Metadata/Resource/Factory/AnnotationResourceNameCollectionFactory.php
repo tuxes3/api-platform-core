@@ -58,7 +58,7 @@ final class AnnotationResourceNameCollectionFactory implements ResourceNameColle
                 (\PHP_VERSION_ID >= 80000 && $reflectionClass->getAttributes(ApiResource::class)) ||
                 (null !== $this->reader && $this->reader->getClassAnnotation($reflectionClass, ApiResource::class))
             ) {
-                $classes[$className] = true;
+                $classes[$className]['enabled'] = true;
                 $classes[$className]['abstract'] = $reflectionClass->isAbstract();
             }
         }
