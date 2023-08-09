@@ -59,8 +59,14 @@ final class AnnotationResourceNameCollectionFactory implements ResourceNameColle
                 (null !== $this->reader && $this->reader->getClassAnnotation($reflectionClass, ApiResource::class))
             ) {
                 $classes[$className] = true;
+                $classes[$className]['abstract'] = $reflectionClass->isAbstract();
             }
         }
+
+        // interfaces need to be loaded first, so they exist in the type container already
+        \uasort($classes, static function (array $a, array $b) {
+            return $b['abstract'];
+        });
 
         return new ResourceNameCollection(array_keys($classes));
     }

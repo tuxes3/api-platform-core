@@ -28,6 +28,7 @@ use GraphQL\Type\Definition\InterfaceType;
 use GraphQL\Type\Definition\NonNull;
 use GraphQL\Type\Definition\ObjectType;
 use GraphQL\Type\Definition\Type as GraphQLType;
+use GraphQL\Type\Definition\WrappingType;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\PropertyInfo\Type;
 
@@ -67,6 +68,10 @@ final class TypeBuilder implements TypeBuilderInterface
             $shortName = $operationName.ucfirst($shortName).'Subscription';
         }
 
+        $isInterface = (new \ReflectionClass($resourceClass))->isAbstract()
+            && !($operation instanceof Mutation || $operation instanceof Subscription);
+
+
         if ($input) {
             if ($depth > 0) {
                 $shortName .= 'Nested';
@@ -95,8 +100,8 @@ final class TypeBuilder implements TypeBuilderInterface
 
         if ($this->typesContainer->has($shortName)) {
             $resourceObjectType = $this->typesContainer->get($shortName);
-            if (!($resourceObjectType instanceof ObjectType || $resourceObjectType instanceof NonNull)) {
-                throw new \LogicException(sprintf('Expected GraphQL type "%s" to be %s.', $shortName, implode('|', [ObjectType::class, NonNull::class])));
+            if (!($resourceObjectType instanceof ObjectType || $resourceObjectType instanceof NonNull || $resourceObjectType instanceof InterfaceType)) {
+                throw new \LogicException(sprintf('Expected GraphQL type "%s" to be %s.', $shortName, implode('|', [ObjectType::class, NonNull::class, InterfaceType::class])));
             }
 
             return $resourceObjectType;
@@ -112,7 +117,6 @@ final class TypeBuilder implements TypeBuilderInterface
         $configuration = [
             'name' => $shortName,
             'description' => $operation->getDescription(),
-            'resolveField' => $this->defaultFieldResolver,
             'fields' => function () use ($resourceClass, $operation, $operationName, $resourceMetadataCollection, $input, $wrapData, $depth, $ioMetadata) {
                 if ($wrapData) {
                     $queryOperation = $this->getQueryOperation($resourceMetadataCollection);
@@ -166,13 +170,70 @@ final class TypeBuilder implements TypeBuilderInterface
 
                 return $fields;
             },
-            'interfaces' => $wrapData ? [] : [$this->getNodeInterface()],
         ];
 
-        $resourceObjectType = $input ? GraphQLType::nonNull(new InputObjectType($configuration)) : new ObjectType($configuration);
+        if ($isInterface) {
+            $configuration['resolveType'] = function ($value, $context, $info) {
+                if (!isset($value[ItemNormalizer::ITEM_RESOURCE_CLASS_KEY])) {
+                    throw new \UnexpectedValueException('Resource class was not passed. Interface type can not be used.');
+                }
+
+                $shortName = (new \ReflectionClass($value[ItemNormalizer::ITEM_RESOURCE_CLASS_KEY]))->getShortName();
+
+                if (!$this->typesContainer->has($shortName)) {
+                    throw new \UnexpectedValueException("Type with name $shortName can not be found");
+                }
+
+                $type = $this->typesContainer->get($shortName);
+                if (!isset($type->config['interfaces'])) {
+                    throw new \UnexpectedValueException("Type \"$shortName\" doesn't implement any interface.");
+                }
+
+                foreach ($type->config['interfaces'] as $interface) {
+                    $returnType = $info->returnType instanceof WrappingType
+                        ? $info->returnType->getWrappedType()
+                        : $info->returnType;
+
+                    if ($interface === $returnType) {
+                        return $type;
+                    }
+                }
+
+                throw new \UnexpectedValueException("Type \"$type\" must implement interface \"$info->returnType\"");
+            };
+        } else {
+            $configuration['interfaces'] = $wrapData ? [] : array_merge([$this->getNodeInterface()], $this->getInterfaceTypes($resourceClass));
+            $configuration['resolveField'] = $this->defaultFieldResolver;
+        }
+
+        if($input) {
+            $resourceObjectType = GraphQLType::nonNull(new InputObjectType($configuration));
+        } elseif($isInterface) {
+            $resourceObjectType = new InterfaceType($configuration);
+        } else {
+            $resourceObjectType = new ObjectType($configuration);
+        }
         $this->typesContainer->set($shortName, $resourceObjectType);
 
         return $resourceObjectType;
+    }
+
+    private function getInterfaceTypes(string $mainClass): array
+    {
+        $interfaceTypes = [];
+        foreach (class_parents($mainClass) as $resourceClass) {
+            try {
+                $reflection = new \ReflectionClass($resourceClass);
+            } catch (\ReflectionException $e) {
+                throw new \UnexpectedValueException("Class $resourceClass can't be found.");
+            }
+
+            $typeName = $reflection->getShortName();
+
+            if($this->typesContainer->has($typeName)) $interfaceTypes[] = $this->typesContainer->get($typeName);
+        }
+
+        return $interfaceTypes;
     }
 
     /**
