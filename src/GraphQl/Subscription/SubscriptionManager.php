@@ -85,6 +85,9 @@ final class SubscriptionManager implements SubscriptionManagerInterface
             /** @var Operation */
             $operation = (new Subscription())->withName('update_subscription')->withShortName($shortName);
             $data = ($this->serializeStage)($object, $resourceClass, $operation, $resolverContext);
+            $rootObject = array_keys($data)[0];
+            $data[$rootObject]['__typename'] = $this->resourceMetadataFactory->create($resourceClass)->getShortName();
+            $data[$rootObject]['id'] = $iri;
             unset($data['clientSubscriptionId']);
 
             if ($data !== $subscriptionResult) {
