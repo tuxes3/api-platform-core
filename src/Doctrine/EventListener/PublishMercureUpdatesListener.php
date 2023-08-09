@@ -31,6 +31,7 @@ use ApiPlatform\Symfony\Messenger\DispatchTrait;
 use Doctrine\Common\EventArgs;
 use Doctrine\ODM\MongoDB\Event\OnFlushEventArgs as MongoDbOdmOnFlushEventArgs;
 use Doctrine\ORM\Event\OnFlushEventArgs as OrmOnFlushEventArgs;
+use Doctrine\ORM\PersistentCollection;
 use Symfony\Component\ExpressionLanguage\ExpressionFunction;
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -124,6 +125,16 @@ final class PublishMercureUpdatesListener
         $methodName = $eventArgs instanceof OrmOnFlushEventArgs ? 'getScheduledEntityDeletions' : 'getScheduledDocumentDeletions';
         foreach ($uow->{$methodName}() as $object) {
             $this->storeObjectToPublish($object, 'deletedObjects');
+        }
+
+        /** @var PersistentCollection $collection */
+        foreach ($uow->getScheduledCollectionDeletions() as $collection) {
+            $this->storeObjectToPublish($collection->getOwner(), 'updatedObjects');
+        }
+
+        /** @var PersistentCollection $collection */
+        foreach ($uow->getScheduledCollectionUpdates() as $collection) {
+            $this->storeObjectToPublish($collection->getOwner(), 'updatedObjects');
         }
     }
 
