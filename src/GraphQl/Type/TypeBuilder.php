@@ -174,9 +174,10 @@ final class TypeBuilder implements TypeBuilderInterface, TypeBuilderEnumInterfac
                 }
 
                 foreach ($type->config['interfaces'] as $interface) {
-                    $returnType = $info->returnType instanceof WrappingType
-                        ? $info->returnType->getWrappedType()
-                        : $info->returnType;
+                    $returnType = $info->returnType;
+                    while ($returnType instanceof WrappingType) {
+                        $returnType = $returnType->getWrappedType();
+                    }
 
                     if ($interface === $returnType) {
                         return $type;
