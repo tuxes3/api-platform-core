@@ -259,7 +259,7 @@ final class TypeBuilder implements TypeBuilderInterface
         $shortName = $resourceType->name;
         $paginationType = $this->pagination->getGraphQlPaginationType($resourceClass, $operationName);
 
-        $connectionTypeKey = sprintf('%s%sConnection', $shortName, ucfirst($paginationType));
+        $connectionTypeKey = sprintf('%sConnection', $shortName);
         if ($this->typesContainer->has($connectionTypeKey)) {
             return $this->typesContainer->get($connectionTypeKey);
         }
