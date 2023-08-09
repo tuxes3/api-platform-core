@@ -522,7 +522,14 @@ final class FieldsBuilder implements FieldsBuilderInterface
         }
 
         if ($this->typeBuilder->isCollection($type)) {
-            return $this->pagination->isGraphQlEnabled($rootOperation) && !$input ? $this->typeBuilder->getResourcePaginatedCollectionType($graphqlType, $resourceClass, $rootOperation) : GraphQLType::listOf($graphqlType);
+            if ($input) {
+                return GraphQLType::listOf(GraphQLType::nonNull($graphqlType));
+            }
+
+            if($this->pagination->isGraphQlEnabled($rootOperation)) {
+                return $this->typeBuilder->getResourcePaginatedCollectionType($graphqlType, $resourceClass, $rootOperation);
+            }
+            return GraphQLType::nonNull(GraphQLType::listOf(GraphQLType::nonNull($graphqlType)));
         }
 
         return $forceNullable || !$graphqlType instanceof NullableType || $type->isNullable() || ($rootOperation instanceof Mutation && 'update' === $rootOperation->getName())
