@@ -93,7 +93,8 @@ final class SubscriptionManager implements OperationAwareSubscriptionManagerInte
                 throw new \LogicException();
             }
             $rootObject = array_keys($data)[0];
-            $data[$rootObject]['__typename'] = $shortName;
+            $classParts = explode('\\', $this->getResourceClass($object));
+            $data[$rootObject]['__typename'] = end($classParts);
             $data[$rootObject]['id'] = $iri;
 
             unset($data['clientSubscriptionId']);
