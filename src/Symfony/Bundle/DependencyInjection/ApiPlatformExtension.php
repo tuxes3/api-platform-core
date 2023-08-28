@@ -81,13 +81,6 @@ final class ApiPlatformExtension extends Extension implements PrependExtensionIn
                 ],
             ]);
         }
-        if (isset($container->getExtensions()['lexik_jwt_authentication'])) {
-            $container->prependExtensionConfig('lexik_jwt_authentication', [
-                'api_platform' => [
-                    'enabled' => true,
-                ],
-            ]);
-        }
     }
 
     /**
