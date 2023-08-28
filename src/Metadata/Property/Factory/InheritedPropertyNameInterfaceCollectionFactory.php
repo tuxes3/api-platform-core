@@ -13,9 +13,7 @@ declare(strict_types=1);
 
 namespace ApiPlatform\Metadata\Property\Factory;
 
-use ApiPlatform\Core\Exception\ResourceClassNotFoundException;
-use ApiPlatform\Core\Metadata\Property\Factory\InheritedPropertyNameCollectionFactory;
-use ApiPlatform\Core\Metadata\Resource\Factory\ResourceMetadataFactoryInterface;
+use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use ApiPlatform\Metadata\Property\PropertyNameCollection;
 use ApiPlatform\Metadata\Resource\Factory\ResourceNameCollectionFactoryInterface;
 
@@ -28,18 +26,15 @@ final class InheritedPropertyNameInterfaceCollectionFactory implements PropertyN
 {
     private $resourceNameCollectionFactory;
     private $decorated;
-    private $resourceMetadata;
     private $propertyInfo;
 
     public function __construct(ResourceNameCollectionFactoryInterface $resourceNameCollectionFactory,
-                                ResourceMetadataFactoryInterface $resourceMetadata,
                                 PropertyNameCollectionFactoryInterface $propertyInfo,
                                 PropertyNameCollectionFactoryInterface $decorated = null)
     {
         $this->resourceNameCollectionFactory = $resourceNameCollectionFactory;
         $this->decorated = $decorated;
         $this->propertyInfo = $propertyInfo;
-        $this->resourceMetadata = $resourceMetadata;
     }
 
     /**
@@ -50,7 +45,7 @@ final class InheritedPropertyNameInterfaceCollectionFactory implements PropertyN
         $propertyNames = [];
 
         try {
-            $resourceMetadata = $this->resourceMetadata->create($resourceClass);
+            $resourceMetadata = $this->decorated->create($resourceClass);
         } catch (ResourceClassNotFoundException $e) {
             $resourceMetadata = null;
         }
@@ -66,7 +61,7 @@ final class InheritedPropertyNameInterfaceCollectionFactory implements PropertyN
 
         // Inherited from parent
         if ($this->decorated) {
-            if ($this->decorated instanceof InheritedPropertyNameCollectionFactory) {
+            if ($this->decorated instanceof PropertyInfoPropertyNameCollectionFactory) {
                 // InheritedPropertyNameCollectionFactory doesnt work for interfaces
                 foreach ($this->propertyInfo->create($resourceClass, $options) as $propertyName) {
                     $propertyNames[$propertyName] = (string) $propertyName;
