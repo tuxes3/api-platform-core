@@ -523,7 +523,7 @@ final class FieldsBuilder implements FieldsBuilderInterface, FieldsBuilderEnumIn
             if (!$input && $this->pagination->isGraphQlEnabled($resourceOperation)) {
                 // Deprecated path, to remove in API Platform 4.
                 if ($this->typeBuilder instanceof TypeBuilderInterface) {
-                    return $this->typeBuilder->getResourcePaginatedCollectionType($graphqlType, $resourceClass, $resourceOperation);
+                    return $this->typeBuilder->getPaginatedCollectionType($graphqlType, $resourceOperation);
                 }
 
                 return $this->typeBuilder->getPaginatedCollectionType($graphqlType, $resourceOperation);
