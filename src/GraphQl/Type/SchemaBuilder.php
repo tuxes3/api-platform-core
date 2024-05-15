@@ -68,15 +68,15 @@ final class SchemaBuilder implements SchemaBuilderInterface
                         continue;
                     }
 
-                    // TODO: figure out if we can support subscriptions and mutations on interfaces
+                    // TODO: figure out if we can support subscriptions and create-mutations on interfaces
                     $isInterface = (new \ReflectionClass($resourceClass))->isAbstract();
-
-                    $operationName = $operation->getName();
-                    if (!$isInterface && $operationName === 'update') {
+                    if ($operation instanceof Subscription && $operation->getMercure() && !$isInterface) {
                         $subscriptionFields += $this->fieldsBuilder->getSubscriptionFields($resourceClass, $operation);
+
+                        continue;
                     }
 
-                    if (!$isInterface || 'create' !== $operationName) {
+                    if (!$isInterface || $operation->getName() !== 'create') {
                         $mutationFields += $this->fieldsBuilder->getMutationFields($resourceClass, $operation);
                     }
                 }
