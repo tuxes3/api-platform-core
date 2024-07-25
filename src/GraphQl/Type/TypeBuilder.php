@@ -26,8 +26,10 @@ use ApiPlatform\State\Pagination\Pagination;
 use GraphQL\Type\Definition\EnumType;
 use GraphQL\Type\Definition\InputObjectType;
 use GraphQL\Type\Definition\InterfaceType;
+use GraphQL\Type\Definition\ListOfType;
 use GraphQL\Type\Definition\NonNull;
 use GraphQL\Type\Definition\ObjectType;
+use GraphQL\Type\Definition\ResolveInfo;
 use GraphQL\Type\Definition\Type as GraphQLType;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\PropertyInfo\Type;
@@ -95,7 +97,7 @@ final class TypeBuilder implements ContextAwareTypeBuilderInterface
         }
 
         $resourceObjectType = $resourceObjectType ?? $this->typesContainer->get($shortName);
-        if (!($resourceObjectType instanceof ObjectType || $resourceObjectType instanceof NonNull || $resourceObjectType instanceof InputObjectType)) {
+        if (!($resourceObjectType instanceof ObjectType || $resourceObjectType instanceof NonNull || $resourceObjectType instanceof InputObjectType || $resourceObjectType instanceof InterfaceType)) {
             throw new \LogicException(sprintf('Expected GraphQL type "%s" to be %s.', $shortName, implode('|', [ObjectType::class, NonNull::class, InputObjectType::class])));
         }
 
@@ -303,7 +305,7 @@ final class TypeBuilder implements ContextAwareTypeBuilderInterface
         return null;
     }
 
-    private function getResourceObjectTypeConfiguration(string $shortName, ResourceMetadataCollection $resourceMetadataCollection, Operation $operation, array $context = []): InputObjectType|ObjectType
+    private function getResourceObjectTypeConfiguration(string $shortName, ResourceMetadataCollection $resourceMetadataCollection, Operation $operation, array $context = []): InputObjectType|ObjectType|InterfaceType
     {
         $operationName = $operation->getName();
         $resourceClass = $operation->getClass();
@@ -378,6 +380,63 @@ final class TypeBuilder implements ContextAwareTypeBuilderInterface
             'interfaces' => $wrapData ? [] : [$this->getNodeInterface()],
         ];
 
-        return $input ? new InputObjectType($configuration) : new ObjectType($configuration);
+        $isInterface = (new \ReflectionClass($operation->getClass()))->isAbstract()
+            && !($operation instanceof Mutation || $operation instanceof Subscription);
+        if ($isInterface) {
+            $configuration['resolveType'] = function ($value, $context, ResolveInfo $info) {
+                if (!isset($value[ItemNormalizer::ITEM_RESOURCE_CLASS_KEY])) {
+                    throw new \UnexpectedValueException('Resource class was not passed. Interface type can not be used.');
+                }
+
+                $shortName = (new \ReflectionClass($value[ItemNormalizer::ITEM_RESOURCE_CLASS_KEY]))->getShortName();
+
+                if (!$this->typesContainer->has($shortName)) {
+                    throw new \UnexpectedValueException("Type with name $shortName can not be found");
+                }
+
+                $type = $this->typesContainer->get($shortName);
+                if (!isset($type->config['interfaces'])) {
+                    throw new \UnexpectedValueException("Type \"$shortName\" doesn't implement any interface.");
+                }
+
+                foreach ($type->config['interfaces'] as $interface) {
+                    if ($info->returnType === $interface
+                        || ($info->returnType instanceof ListOfType && $info->returnType->getWrappedType() === $interface)) {
+                        return $type;
+                    }
+                }
+
+                throw new \UnexpectedValueException("Type \"$type\" must implement interface \"$info->returnType\"");
+            };
+        } else {
+            $configuration['interfaces'] = $wrapData ? [] : array_merge([$this->getNodeInterface()], $this->getInterfaceTypes($resourceClass));
+            $configuration['resolveField'] = $this->defaultFieldResolver;
+        }
+
+        if ($input) {
+            return new InputObjectType($configuration);
+        }
+        if ($isInterface) {
+            return new InterfaceType($configuration);
+        }
+        return new ObjectType($configuration);
+    }
+
+    private function getInterfaceTypes(string $mainClass): array
+    {
+        $interfaceTypes = [];
+        foreach (class_parents($mainClass) as $resourceClass) {
+            try {
+                $reflection = new \ReflectionClass($resourceClass);
+            } catch (\ReflectionException $e) {
+                throw new \UnexpectedValueException("Class $resourceClass can't be found.");
+            }
+
+            $typeName = $reflection->getShortName();
+
+            if($this->typesContainer->has($typeName)) $interfaceTypes[] = $this->typesContainer->get($typeName);
+        }
+
+        return $interfaceTypes;
     }
 }
